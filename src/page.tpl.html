@@ -151,6 +151,7 @@ th.num{text-align:right}
 tr.changed td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 tr.new td:first-child::after{content:"new";font:600 10px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--ok);border:1px solid var(--ok);border-radius:4px;padding:2px 4px;margin-left:8px;vertical-align:2px}
 .step{display:inline-flex;gap:4px;align-items:center}
+input.gname{width:100%;min-width:11em;font-size:14px}
 .step b{min-width:2.2em;text-align:center;font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
 /* steps */
@@ -470,18 +471,19 @@ const DATA = /*DATA*/;
         .filter(r => !gearFilter || (r.nm + ' ' + r.a.id + ' ' + r.who).toLowerCase().includes(gearFilter.toLowerCase()))
         .sort((x, y) => (x.who.localeCompare(y.who)) || x.nm.localeCompare(y.nm) || (x.a.level - y.a.level))
         .map(({ a, i, nm, who }) => {
-          const o = origBy.get(a.idx), chg = a.idx === -2 || (o && o.level !== a.level);
+          const o = origBy.get(a.idx), chg = a.idx === -2 || (o && (o.level !== a.level || o.id !== a.id));
+          const pas = (DATA.EQ[a.id] || [''])[0], pasName = pas ? (DATA.P[pas] || pas) : '';
           return `<tr class="${chg ? 'changed' : ''}${a.idx === -2 ? ' new' : ''}">
-            <td>${esc(nm)}</td>${isW ? `<td>${who}</td>` : ''}<td class="id">${esc(a.id)}</td>
+            <td>${a.idx === -1 ? esc(nm) : `<input class="gname" list="dl-${sub}" value="${esc(nm)}" data-gid="${i}" aria-label="Change ${esc(nm)} into another item" autocomplete="off">`}${o && o.id !== a.id ? `<span class="orig">was ${esc(nameOf(o.id) || o.id)}</span>` : ''}</td>${isW ? `<td>${who}</td>` : ''}<td class="id">${esc(a.id)}</td><td>${pasName ? esc(pasName) : '<span class="muted">–</span>'}</td>
             <td class="num">${a.idx === -1 || !DATA.EQ[a.id] ? '–' : `<input type="number" min="1" max="${maxLvl(a.id)}" value="${a.level}" data-lvl="${i}" aria-label="Level of ${esc(nm)}"><span class="orig">max ${maxLvl(a.id)}</span>`}</td>
             <td>${a.equipped ? '<span class="muted">Equipped</span>' : ''}</td>
             <td class="num"><button class="mini" type="button" data-gdel="${i}" ${a.equipped ? 'disabled title="Unequip it in game first"' : ''}>Remove</button></td></tr>`;
         }).join('');
       P.innerHTML = `<h2>${isW ? 'Weapons' : 'Accessories'}<span>${L.length} of ${FF13.BAGS[sub].n} slots</span></h2>
-        <p>Each copy is listed separately with its own level. Equipped ${isW ? 'weapons' : 'accessories'} can't be removed. Each item's maximum level comes from the game's data.</p>
+        <p>Each copy is listed separately. Type a different name to turn that copy into another ${isW ? 'weapon (for the same character)' : 'accessory'}; its passive and level cap change with it. Each item has one passive, set by the game. Equipped ${isW ? 'weapons' : 'accessories'} can be changed but not removed.</p>
         <div class="addrow"><input type="text" id="gearFind" placeholder="Filter by name${isW ? ' or character' : ''}" value="${esc(gearFilter)}" autocomplete="off">
           <label class="muted" for="bulkLvl" style="font-size:13px">Set all shown to level</label><input type="number" id="bulkLvl" min="1" max="100" value="1"><button type="button" class="mini" id="bulkApply">Apply</button><button type="button" class="mini" id="bulkMax">Max level</button></div>
-        <div class="tbl"><table><thead><tr><th>${isW ? 'Weapon' : 'Accessory'}</th>${isW ? '<th>For</th>' : ''}<th class="id">ID</th><th class="num">Level</th><th></th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">Nothing here.</td></tr>`}</tbody></table></div>
+        <div class="tbl"><table><thead><tr><th>${isW ? 'Weapon' : 'Accessory'}</th>${isW ? '<th>For</th>' : ''}<th class="id">ID</th><th>Passive</th><th class="num">Level</th><th></th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="muted">Nothing here.</td></tr>`}</tbody></table></div>
         <div class="addrow"><input list="dl-${sub}" id="newId" placeholder="${isW ? 'Weapon name, e.g. Omega Weapon' : 'Accessory name, e.g. Genji Glove'}" autocomplete="off">
           <label class="muted" for="newQty" style="font-size:13px">Copies</label><input type="number" id="newQty" min="1" max="20" value="1">
           <label class="muted" for="newLvl" style="font-size:13px">Level</label><input type="number" id="newLvl" min="1" max="100" value="1"><button type="button" id="newAdd">Add</button></div>`;
@@ -603,6 +605,12 @@ const DATA = /*DATA*/;
     const f = $('gearFind'); f.focus(); f.setSelectionRange(pos, pos);
   });
   $('invPanel').addEventListener('change', e => {
+    if (e.target.dataset.gid !== undefined) {
+      const a = cur.inv[sub][+e.target.dataset.gid], id = idFromInput(sub, e.target.value);
+      if (!id || !DATA.EQ[id]) { showErr(id ? 'That item has no data in the game; pick one from the list.' : pickMsg); renderInv(); return; }
+      if (sub === 'weapons' && id.slice(4, 7) !== a.id.slice(4, 7)) { showErr(`A weapon can only become another ${OWNER[a.id.slice(4, 7)] || 'same-character'} weapon.`); renderInv(); return; }
+      showErr(''); a.id = id; a.level = Math.min(a.level || 1, maxLvl(id)); render(); return;
+    }
     if (e.target.dataset.lvl !== undefined) {
       const a = cur.inv[sub][+e.target.dataset.lvl], v = Math.round(+e.target.value);
       if (!(v >= 1 && v <= maxLvl(a.id))) { showErr(`${nameOf(a.id) || a.id} goes up to level ${maxLvl(a.id)}.`); e.target.value = a.level; return; }

@@ -226,6 +226,10 @@ const FF13 = (() => {
       if (a.idx === -1) { refs.push({ id: a.ref, count: 1 }); continue; } // unreadable entry, kept as-is
       if (a.idx >= 0) {
         const o = EQ + a.idx * EQSZ;
+        if (a.id && a.id !== str(b, o, 16)) { // changed into a different item: rewrite the type ID in place
+          if (!/^(acc|wea)_[\x21-\x7e]{1,11}$/.test(a.id)) throw new Error(`Bad item ID "${a.id}"`);
+          b.fill(0, o, o + 16); for (let k = 0; k < a.id.length; k++) b[o + k] = a.id.charCodeAt(k);
+        }
         if (a.level !== undefined && a.level !== b[o + 17]) b[o + 17] = lvl(a.level);
         refs.push({ id: a.ref, count: 1 }); continue;
       }

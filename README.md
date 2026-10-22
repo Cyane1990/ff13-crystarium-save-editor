@@ -11,7 +11,7 @@ A save editor for **Final Fantasy XIII on PC (Steam)**, plus an optional hard mo
 - **Passives**: find the accessory or weapon that carries a passive such as Auto Haste and add it to your inventory, ready to equip.
 - **ATB**: set each character's ATB segments from 1 to 6.
 - **Party**: choose the leader, the battle team and the reserve.
-- **Inventory**: consumables, components, weapons and accessories, including item levels capped at each item's real maximum. Equipped gear is protected from removal.
+- **Inventory**: consumables, components, weapons and accessories. Each owned weapon or accessory can be turned into a different one (which changes its passive) and given any level up to the item's real maximum. Equipped gear can be changed but not removed.
 - **Hard mode**: scale enemy HP, Strength, Magic and CP rewards for all enemies, bosses only, or regular enemies, or set exact values per enemy. This changes the game's data files and comes with an installer and a one-click restore.
 
 The editor never uploads anything. Saves and game files are read and written on your own computer.

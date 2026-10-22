@@ -13,7 +13,7 @@ const HM = (() => {
   // ---- filelist{u,c}.win32.bin: header (chunkInfoOff, chunkDataOff, fileCount) LE, 8-byte entries
   // (code u32, chunk u16, offsetInChunk u16), chunk table of (uncmp, cmp, off) LE, zlib chunks of
   // "sector:uncmp:cmp:path\0" strings (hex).
-  async function parseFilelist(fl, inflate) {
+  async function parseFilelist(fl, inflate, path = PATH) {
     const ci = le32(fl, 0), cd = le32(fl, 4), n = le32(fl, 8);
     if (ci !== 12 + n * 8 || ci >= fl.length || cd > fl.length) throw new Error('This does not look like an FF13 filelist (filelistu/filelistc.win32.bin).');
     const chunks = [];
@@ -30,11 +30,11 @@ const HM = (() => {
         let z = ch.data.indexOf(0, p); if (z < 0) z = ch.data.length;
         const s = td.decode(ch.data.subarray(p, z));
         const m = /^([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):(.*)$/.exec(s);
-        if (m && m[4] === PATH && !hit) hit = { chunk: ci2, at: p, len: z - p, sector: parseInt(m[1], 16), uncmp: parseInt(m[2], 16), cmp: parseInt(m[3], 16), str: s };
+        if (m && m[4] === path && !hit) hit = { chunk: ci2, at: p, len: z - p, sector: parseInt(m[1], 16), uncmp: parseInt(m[2], 16), cmp: parseInt(m[3], 16), str: s };
         p = z + 1;
       }
     });
-    if (!hit) throw new Error('This filelist has no ' + PATH + '.');
+    if (!hit) throw new Error('This filelist has no ' + path + '.');
     // the next file after ours in the archive bounds how much space we may use
     let next = Infinity;
     chunks.forEach(ch => td.decode(ch.data).split('\0').forEach(s => {
@@ -88,10 +88,47 @@ const HM = (() => {
     }
     return out;
   }
+  // ---- item_weapon.wdb (big-endian): 0x68-byte records. Passive = string pointers @0x08 (id) and @0x0C (display
+  // name), stat type 1 = low nibble @0x41, stat type 2 = u16 @0x42, per-level increase u16 @0x44, starting value s16 @0x46.
+  // Max level: ((b[0x38] & 15) - 2) * 64 + (b[0x39] >> 2).
+  function parseEquipWdb(w) {
+    if (td.decode(w.subarray(0, 3)) !== 'WPD') throw new Error('Not a WDB file.');
+    const n = be32(w, 4), recs = []; let str = null;
+    const tbl = [];
+    for (let i = 0; i < n; i++) {
+      const o = 0x10 + i * 0x20; tbl.push({ id: td.decode(w.subarray(o, o + 16)).split('\0')[0], off: be32(w, o + 16), size: be32(w, o + 20) });
+    }
+    const st = tbl.find(t => t.id === '!!string'); if (!st) throw new Error('item_weapon.wdb has no string table.');
+    const S = w.subarray(st.off, st.off + st.size);
+    const s = p => { if (p >= S.length) return ''; let z = S.indexOf(0, p); if (z < 0) z = S.length; return td.decode(S.subarray(p, z)); };
+    for (const t of tbl) {
+      if (t.id.startsWith('!!') || t.size < 0x48) continue;
+      const o = t.off;
+      recs.push({ id: t.id, off: o, pas: be32(w, o + 8), disp: be32(w, o + 12), pasId: s(be32(w, o + 8)).trim(), dispId: s(be32(w, o + 12)),
+        t1: w[o + 0x41] & 15, t2: be16(w, o + 0x42), inc: be16(w, o + 0x44), ini: (be16(w, o + 0x46) << 16) >> 16,
+        ml: ((w[o + 0x38] & 15) - 2) * 64 + (w[o + 0x39] >> 2) });
+    }
+    if (!recs.some(r => r.id.startsWith('acc_'))) throw new Error('No accessories found; is this item_weapon.wdb?');
+    return recs;
+  }
+  function writeEquipWdb(w, recs, vals) { // vals: Map id -> {pas, disp, t1, t2, inc, ini, ml}
+    const out = new Uint8Array(w);
+    for (const r of recs) {
+      const v = vals.get(r.id); if (!v) continue; const o = r.off;
+      if (!(v.ml >= 1 && v.ml <= 100)) throw new Error(r.id + ': max level must be 1-100.');
+      wbe32(out, o + 8, v.pas); wbe32(out, o + 12, v.disp);
+      out[o + 0x41] = (out[o + 0x41] & 0xF0) | (v.t1 & 15); wbe16(out, o + 0x42, v.t2);
+      wbe16(out, o + 0x44, Math.max(0, Math.min(65535, Math.round(v.inc))));
+      wbe16(out, o + 0x46, Math.max(-32768, Math.min(32767, Math.round(v.ini))) & 0xFFFF);
+      out[o + 0x38] = (out[o + 0x38] & 0xF0) | ((v.ml >> 6) + 2); out[o + 0x39] = ((v.ml & 63) << 2) | (out[o + 0x39] & 3);
+    }
+    return out;
+  }
   async function sha256hex(u8) {
     const h = await crypto.subtle.digest('SHA-256', u8);
     return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join('');
   }
-  return { SECTOR, PATH, parseFilelist, patchFilelist, parseWdb, writeWdb, sha256hex };
+  const GEAR_PATH = 'db/resident/item_weapon.wdb';
+  return { SECTOR, PATH, GEAR_PATH, parseFilelist, patchFilelist, parseWdb, writeWdb, parseEquipWdb, writeEquipWdb, sha256hex };
 })();
 if (typeof module !== 'undefined') module.exports = HM;

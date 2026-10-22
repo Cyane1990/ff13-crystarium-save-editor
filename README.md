@@ -48,7 +48,6 @@ Running a newer build's `install.bat` restores the backup first, so settings nev
 ## How it works
 
 - **Saves**: `ff13-XX.dat` is a 0x208-byte plain header followed by a body encrypted with the same cipher as the PS3/Xbox 360 versions, using a different key. The editor decrypts the body, edits it, updates the checksum in the last 4 bytes, and encrypts it again. Unchanged saves come back byte-identical.
-- **Roles**: unlock any of the six roles for each character and set role levels 1–5.
 - **Roles** are six 32-bit role levels at +0xC28 (Sentinel, Commando, Ravager, Synergist, Saboteur, Medic; 0 = locked).
 - **Abilities** are a list of 16-byte ability IDs in each character's 0xD80-byte record, with a count byte at +0x27. ATB is at +0xC58 (segments × 10).
 - **Inventory** uses fixed bags of 20-byte entries. Weapons and accessories point into a 512-entry equipment table that stores the equipped flag and level.

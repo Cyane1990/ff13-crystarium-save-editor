@@ -6,12 +6,12 @@ A save editor for **Final Fantasy XIII on PC (Steam)**, plus an optional hard mo
 
 ## Features
 
-- **Roles**: unlock any of the six roles for each character and set role levels 1–5.
+- **Roles**: view and set each character's stored role levels (0–5). Raising a locked role doesn't add its crystal to the Crystarium; the game does that through a Chapter 10 story event.
 - **Abilities**: choose exactly which Crystarium abilities each character has, role by role. Abilities made for another character (Army of One, Highwind, and so on) can be shown and added too.
-- **Passives** (experimental): add equipment passives such as Auto Haste or Auto Tetradefense directly to a character.
+- **Passives**: find the accessory or weapon that carries a passive such as Auto Haste and add it to your inventory, ready to equip.
 - **ATB**: set each character's ATB segments from 1 to 6.
 - **Party**: choose the leader, the battle team and the reserve.
-- **Inventory**: consumables, components, weapons and accessories, including item levels. Equipped gear is protected from removal.
+- **Inventory**: consumables, components, weapons and accessories, including item levels capped at each item's real maximum. Equipped gear is protected from removal.
 - **Hard mode**: scale enemy HP, Strength, Magic and CP rewards for all enemies, bosses only, or regular enemies, or set exact values per enemy. This changes the game's data files and comes with an installer and a one-click restore.
 
 The editor never uploads anything. Saves and game files are read and written on your own computer.

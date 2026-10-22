@@ -106,9 +106,11 @@ input[type=number]{width:5.5em;font-variant-numeric:tabular-nums}
 .chip button{padding:3px 8px;font-size:12px;border-radius:999px}
 .addrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .addrow input[list],.addrow #addId{flex:1 1 220px}
-.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 14px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 14px;align-items:start}
 .pgrid .sub{grid-column:1/-1;margin:8px 0 0}
-.pgrid .ab{--rc:var(--atb)}
+.psrc{display:grid;gap:4px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sunk)}
+.psrc .nm{font-weight:600}
+.psrc .gear{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
 .slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @media (max-width:600px){.slots{grid-template-columns:1fr}}
 .slot{display:grid;gap:6px;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--sunk)}
@@ -196,7 +198,7 @@ code.p{font:12px var(--mono);overflow-wrap:anywhere;color:var(--fg)}
 
     <section class="panel" aria-label="Roles">
       <h2 id="rolesTitle">Roles</h2>
-      <p>A locked role can't be used in paradigms. Unlocking gives it role level 1. The Crystarium still opens each role's nodes only as the story allows, so a newly unlocked role may have nothing to buy yet; you can give its abilities in the lists below.</p>
+      <p>These are the role levels stored in the save. Raising a locked role to level 1 doesn't make its crystal appear in the Crystarium; the game adds the other roles' crystals through a story event in Chapter 10, which this editor can't trigger yet. You can still give any role's abilities in the lists below.</p>
       <div class="rolegrid" id="rolegrid"></div>
       <div class="addrow"><button type="button" class="mini" id="unlockChar">Unlock all roles</button><button type="button" class="mini" id="unlockAll">Unlock all roles for everyone</button></div>
     </section>
@@ -212,17 +214,18 @@ code.p{font:12px var(--mono);overflow-wrap:anywhere;color:var(--fg)}
     <div class="roles" id="roles"></div>
 
     <section class="panel" id="passives">
-      <h2>Passives<span class="tag">Experimental</span></h2>
-      <p>The game normally grants these through equipped weapons and accessories. Ticking one writes it into this character's ability list. It isn't confirmed that the game applies passives listed this way, so check in battle (Auto Haste should start the fight with Haste).</p>
+      <h2>Passives</h2>
+      <p>Passives such as Auto Haste come only from equipped gear; each accessory or weapon has one fixed passive. Add the item that carries the passive you want, then equip it on this character in the game's Equip menu. Weapon traits list only this character's weapons.</p>
       <div class="pgrid" id="pgrid"></div>
     </section>
 
     <section class="panel" id="other">
       <h2>Other entries</h2>
-      <p>Entries in this character's list that aren't regular Crystarium abilities, such as weapon passives or damaged text from earlier edits. Entries marked in amber don't match any ability ID the game uses; removing them is usually safe.</p>
+      <p>Entries in this character's list that aren't regular Crystarium abilities. Passive IDs here (like auto_hast) don't do anything in the ability list; the game only applies passives from equipped gear. Entries marked in amber don't match any ID the game uses. Removing either kind is safe.</p>
       <div class="chips" id="chips"></div>
+      <div class="addrow"><button type="button" class="mini" id="rmNoEffect">Remove passive entries for everyone</button></div>
       <div class="addrow">
-        <input id="addId" placeholder="Add an ability ID, e.g. auto_hast" maxlength="15" spellcheck="false" autocomplete="off">
+        <input id="addId" placeholder="Add an ability ID" maxlength="15" spellcheck="false" autocomplete="off">
         <button type="button" id="addBtn">Add</button>
       </div>
     </section>
@@ -415,16 +418,28 @@ const DATA = /*DATA*/;
   }
   const PSET = new Map(DATA.PS.map(p => [p[0], p]));
   const PGROUPS = [['buff', 'Auto-cast buffs'], ['battle', 'Battle and rewards'], ['weapon', 'Weapon traits']];
+  const SRC = {}; // passive id -> [gear ids]
+  for (const [id, [pas]] of Object.entries(DATA.EQ)) if (pas) (SRC[pas] = SRC[pas] || []).push(id);
+  const gearBag = id => id.startsWith('wea_') ? 'weapons' : 'accs';
+  const maxLvl = id => (DATA.EQ[id] || [0, 100])[1] || 100;
   function renderPassives() {
-    const L = new Set(cur.ab[active]), was = new Set(orig.ab[active]);
-    $('pgrid').innerHTML = PGROUPS.map(([g, label]) => `<div class="sub">${label}</div>` +
-      DATA.PS.filter(p => p[2] === g).map(([id, nm]) => `<label class="ab${L.has(id) !== was.has(id) ? ' changed' : ''}">
-        <input type="checkbox" data-pas="${esc(id)}" ${L.has(id) ? 'checked' : ''}><span class="nm">${esc(nm)}</span><span class="id">${esc(id)}</span></label>`).join('')).join('');
+    const c = CH.find(x => x.key === active), pre = { lightning: 'lig', snow: 'sno', sazz: 'saz', hope: 'hop', vanira: 'van', fang: 'fan' }[active];
+    const owned = id => cur.inv[gearBag(id)].filter(a => a.id === id).length;
+    $('pgrid').innerHTML = PGROUPS.map(([g, label]) => {
+      const rows = DATA.PS.filter(p => p[2] === g).map(([pid, nm]) => {
+        let src = (SRC[pid] || []).filter(id => !id.startsWith('wea_') || id.startsWith('wea_' + pre + '_'));
+        if (!src.length) return '';
+        // prefer the lowest-tier source item
+        src = src.slice(0, 2);
+        return `<div class="psrc"><span class="nm">${esc(nm)}</span>${src.map(id => `<span class="gear"><span>${esc(nameOf(id) || id)}${owned(id) ? ` <span class="muted">· own ${owned(id)}</span>` : ''}</span><button type="button" class="mini" data-addgear="${id}">Add</button></span>`).join('')}</div>`;
+      }).join('');
+      return rows ? `<div class="sub">${label}</div>${rows}` : '';
+    }).join('');
   }
   function renderOther() {
-    const extra = cur.ab[active].filter(id => !byId.has(id) && !PSET.has(id));
+    const extra = cur.ab[active].filter(id => !byId.has(id));
     $('chips').innerHTML = extra.length ? extra.map(id => {
-      const nm = DATA.P[id] || (id === 'sm000' ? 'Summon (built-in entry, keep it)' : '');
+      const nm = DATA.P[id] ? DATA.P[id] + ' (no effect here)' : (id === 'sm000' ? 'Summon (built-in entry, keep it)' : '');
       return `<span class="chip${nm ? '' : ' bad'}">${nm ? esc(nm) + ' ' : ''}<code>${esc(id)}</code><button type="button" data-rm="${esc(id)}" aria-label="Remove ${esc(id)}">Remove</button></span>`;
     }).join('') : '<span class="muted" style="font-size:13px">None for this character.</span>';
   }
@@ -458,14 +473,14 @@ const DATA = /*DATA*/;
           const o = origBy.get(a.idx), chg = a.idx === -2 || (o && o.level !== a.level);
           return `<tr class="${chg ? 'changed' : ''}${a.idx === -2 ? ' new' : ''}">
             <td>${esc(nm)}</td>${isW ? `<td>${who}</td>` : ''}<td class="id">${esc(a.id)}</td>
-            <td class="num">${a.idx === -1 ? '–' : `<input type="number" min="1" max="100" value="${a.level}" data-lvl="${i}" aria-label="Level of ${esc(nm)}">`}</td>
+            <td class="num">${a.idx === -1 || !DATA.EQ[a.id] ? '–' : `<input type="number" min="1" max="${maxLvl(a.id)}" value="${a.level}" data-lvl="${i}" aria-label="Level of ${esc(nm)}"><span class="orig">max ${maxLvl(a.id)}</span>`}</td>
             <td>${a.equipped ? '<span class="muted">Equipped</span>' : ''}</td>
             <td class="num"><button class="mini" type="button" data-gdel="${i}" ${a.equipped ? 'disabled title="Unequip it in game first"' : ''}>Remove</button></td></tr>`;
         }).join('');
       P.innerHTML = `<h2>${isW ? 'Weapons' : 'Accessories'}<span>${L.length} of ${FF13.BAGS[sub].n} slots</span></h2>
-        <p>Each copy is listed separately with its own level. Equipped ${isW ? 'weapons' : 'accessories'} can't be removed. Levels above an item's normal maximum may be clamped or behave oddly in game.</p>
+        <p>Each copy is listed separately with its own level. Equipped ${isW ? 'weapons' : 'accessories'} can't be removed. Each item's maximum level comes from the game's data.</p>
         <div class="addrow"><input type="text" id="gearFind" placeholder="Filter by name${isW ? ' or character' : ''}" value="${esc(gearFilter)}" autocomplete="off">
-          <label class="muted" for="bulkLvl" style="font-size:13px">Set all shown to level</label><input type="number" id="bulkLvl" min="1" max="100" value="1"><button type="button" class="mini" id="bulkApply">Apply</button></div>
+          <label class="muted" for="bulkLvl" style="font-size:13px">Set all shown to level</label><input type="number" id="bulkLvl" min="1" max="100" value="1"><button type="button" class="mini" id="bulkApply">Apply</button><button type="button" class="mini" id="bulkMax">Max level</button></div>
         <div class="tbl"><table><thead><tr><th>${isW ? 'Weapon' : 'Accessory'}</th>${isW ? '<th>For</th>' : ''}<th class="id">ID</th><th class="num">Level</th><th></th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">Nothing here.</td></tr>`}</tbody></table></div>
         <div class="addrow"><input list="dl-${sub}" id="newId" placeholder="${isW ? 'Weapon name, e.g. Omega Weapon' : 'Accessory name, e.g. Genji Glove'}" autocomplete="off">
           <label class="muted" for="newQty" style="font-size:13px">Copies</label><input type="number" id="newQty" min="1" max="20" value="1">
@@ -540,9 +555,13 @@ const DATA = /*DATA*/;
     limit(); render();
   });
   $('showAll').addEventListener('change', e => { try { localStorage.setItem('ff13.showAll', e.target.checked ? '1' : '0'); } catch {} renderRoles(); });
-  $('pgrid').addEventListener('change', e => { const id = e.target.dataset.pas; if (!id) return;
-    if (e.target.checked) { if (!cur.ab[active].includes(id)) cur.ab[active].push(id); } else cur.ab[active] = cur.ab[active].filter(x => x !== id);
-    limit(); render(); });
+  $('pgrid').addEventListener('click', e => {
+    const id = e.target.dataset.addgear; if (!id) return; const bag = gearBag(id);
+    if (cur.inv[bag].length >= FF13.BAGS[bag].n) { showErr('That inventory bag is full.'); return; }
+    cur.inv[bag].push({ idx: -2, id, equipped: false, level: 1 }); showErr(''); render();
+    const st = $('status'); st.innerHTML = `<b>Added ${esc(nameOf(id) || id)}</b> · equip it in game after saving`;
+  });
+  $('rmNoEffect').addEventListener('click', () => { for (const c of CH) cur.ab[c.key] = cur.ab[c.key].filter(id => !PSET.has(id)); render(); });
   $('chips').addEventListener('click', e => { const id = e.target.dataset.rm; if (!id) return; cur.ab[active] = cur.ab[active].filter(x => x !== id); render(); });
   $('addBtn').addEventListener('click', () => {
     const id = $('addId').value.trim();
@@ -586,7 +605,7 @@ const DATA = /*DATA*/;
   $('invPanel').addEventListener('change', e => {
     if (e.target.dataset.lvl !== undefined) {
       const a = cur.inv[sub][+e.target.dataset.lvl], v = Math.round(+e.target.value);
-      if (!(v >= 1 && v <= 100)) { showErr('Levels go from 1 to 100.'); e.target.value = a.level; return; }
+      if (!(v >= 1 && v <= maxLvl(a.id))) { showErr(`${nameOf(a.id) || a.id} goes up to level ${maxLvl(a.id)}.`); e.target.value = a.level; return; }
       showErr(''); a.level = v; render(); return;
     }
     const i = e.target.dataset.qty; if (i === undefined) return;
@@ -598,13 +617,13 @@ const DATA = /*DATA*/;
     const t = e.target;
     if (t.dataset.del !== undefined) { cur.inv[sub].splice(+t.dataset.del, 1); render(); return; }
     if (t.dataset.gdel !== undefined) { const a = cur.inv[sub][+t.dataset.gdel]; if (a && !a.equipped) cur.inv[sub].splice(+t.dataset.gdel, 1); render(); return; }
-    if (t.id === 'bulkApply') {
-      const v = Math.round(+$('bulkLvl').value); if (!(v >= 1 && v <= 100)) { showErr('Levels go from 1 to 100.'); return; }
+    if (t.id === 'bulkApply' || t.id === 'bulkMax') {
+      const v = t.id === 'bulkMax' ? Infinity : Math.round(+$('bulkLvl').value); if (!(v >= 1)) { showErr('Levels start at 1.'); return; }
       const f = gearFilter.toLowerCase(), isW = sub === 'weapons';
       for (const a of cur.inv[sub]) {
-        if (a.idx === -1) continue;
+        if (a.idx === -1 || !DATA.EQ[a.id]) continue;
         const hay = ((nameOf(a.id) || '') + ' ' + a.id + ' ' + (isW ? OWNER[a.id.slice(4, 7)] || '' : '')).toLowerCase();
-        if (!f || hay.includes(f)) a.level = v;
+        if (!f || hay.includes(f)) a.level = Math.min(v, maxLvl(a.id));
       }
       showErr(''); render(); return;
     }
@@ -627,7 +646,7 @@ const DATA = /*DATA*/;
   $('invPanel').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newId') $('newAdd').click(); });
   function addGear(id, q, lv) {
     if (cur.inv[sub].length + q > FF13.BAGS[sub].n) { showErr(`You can hold at most ${FF13.BAGS[sub].n} of these.`); return; }
-    for (let i = 0; i < q; i++) cur.inv[sub].push({ idx: -2, id, equipped: false, level: lv });
+    for (let i = 0; i < q; i++) cur.inv[sub].push({ idx: -2, id, equipped: false, level: Math.min(lv, maxLvl(id)) });
     showErr(''); render();
   }
 

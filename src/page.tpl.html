@@ -1,0 +1,920 @@
+<title>Crystarium Save Editor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — save bar, Party / Inventory tabs, panels, sticky save bar at the bottom */
+:root{
+  --bg:#eef2f6; --surface:#ffffff; --sunk:#e3e9f0; --line:#c9d3de; --fg:#152031; --muted:#56657a;
+  --accent:#1f7fa8; --accent-fg:#ffffff; --atb:#e0a42a;
+  --com:#c23b3b; --rav:#2f63c9; --sen:#c08a12; --syn:#8a4cc4; --sab:#1d8c74; --med:#3d9a3a; --tec:#56657a;
+  --warn:#a5600b; --warn-bg:#fdf1de; --ok:#1f7a4d;
+  --display:"Chakra Petch",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c1320; --surface:#131d2e; --sunk:#0f1826; --line:#26354c; --fg:#e4ecf6; --muted:#90a0b7;
+  --accent:#5cc0e4; --accent-fg:#06202c; --atb:#f0bd4f;
+  --com:#ef6b6b; --rav:#6f9bf0; --sen:#e5b445; --syn:#b98aec; --sab:#45c3a5; --med:#6fca6a; --tec:#90a0b7;
+  --warn:#f0b55c; --warn-bg:#2c2312; --ok:#5fd29a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1320; --surface:#131d2e; --sunk:#0f1826; --line:#26354c; --fg:#e4ecf6; --muted:#90a0b7;
+  --accent:#5cc0e4; --accent-fg:#06202c; --atb:#f0bd4f;
+  --com:#ef6b6b; --rav:#6f9bf0; --sen:#e5b445; --syn:#b98aec; --sab:#45c3a5; --med:#6fca6a; --tec:#90a0b7;
+  --warn:#f0b55c; --warn-bg:#2c2312; --ok:#5fd29a; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+@media (max-width:560px){td.id,th.id{display:none}}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);margin:0}
+.wrap{max-width:1100px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 120px;display:grid;gap:22px}
+h1{font:700 clamp(26px,4vw,34px)/1.1 var(--display);letter-spacing:.01em;margin:0;text-wrap:balance}
+h1 small{display:block;font:500 13px/1.4 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.lede{color:var(--muted);max-width:68ch;margin:6px 0 0}
+button,select{font:600 14px/1 var(--body);border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:10px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.mini{padding:5px 9px;font-size:12px;border-radius:6px}
+input[type=number],input[type=text],input:not([type]){font:14px var(--body);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);min-width:0}
+input[type=number]{width:5.5em;font-variant-numeric:tabular-nums}
+/* file bar */
+.filebar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.filebar .meta{flex:1 1 260px;min-width:0}
+.filebar .meta b{font:600 15px var(--display);letter-spacing:.02em}
+.filebar .meta div{color:var(--muted);font-size:13px;white-space:pre-line}
+.tag{display:inline-block;font:600 11px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:5px;background:var(--warn-bg);color:var(--warn);vertical-align:2px;margin-left:6px}
+#drop.over{outline:2px dashed var(--accent);outline-offset:4px}
+.err{color:var(--com);font-weight:600;margin:0}
+/* top tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{white-space:nowrap;flex:none}
+@media (max-width:480px){.tabs button{padding:10px 9px;font-size:13px;letter-spacing:.03em}}
+.tabs button{border:0;border-radius:8px 8px 0 0;background:transparent;font:600 15px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 16px;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs button .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:6px;vertical-align:2px}
+.view{display:grid;gap:18px}
+/* character rail */
+.rail{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+@media (max-width:720px){.rail{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.char{display:grid;gap:4px;text-align:left;padding:10px 12px;border-radius:10px}
+.char .n{font:600 16px var(--display)}
+.char .c{font:500 12px var(--body);color:var(--muted);font-variant-numeric:tabular-nums}
+.char[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+.char .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:6px;vertical-align:2px}
+.gauge{display:flex;gap:2px}
+.gauge i{flex:1;height:5px;border-radius:2px;background:var(--line)}
+.gauge i.on{background:var(--atb)}
+/* ATB control */
+.atb{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.atb h2{font:700 15px var(--display);letter-spacing:.06em;text-transform:uppercase;margin:0}
+.atb .segs{display:flex;gap:4px}
+.atb .segs button{width:44px;height:30px;padding:0;border-radius:5px;background:var(--sunk);font:600 13px var(--display);color:var(--muted)}
+.atb .segs button.on{background:var(--atb);border-color:var(--atb);color:#2a1d00}
+.atb p{margin:0;color:var(--muted);font-size:13px;flex:1 1 220px}
+/* toolbar */
+.tools{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.tools label{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:14px;cursor:pointer}
+.tools .acts{display:flex;gap:8px;flex-wrap:wrap}
+/* role panels */
+.roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+@media (max-width:420px){.roles{grid-template-columns:1fr}}
+.role{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 12px 14px;min-width:0;border-top:4px solid var(--rc)}
+.role header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.role h2{font:700 15px var(--display);letter-spacing:.06em;text-transform:uppercase;margin:0;flex:1;color:var(--rc)}
+.role h2 span{color:var(--muted);font:500 12px var(--body);letter-spacing:0;text-transform:none;margin-left:6px}
+.ab{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer}
+.ab:hover{background:var(--sunk)}
+.ab input{width:17px;height:17px;accent-color:var(--rc);margin:0}
+.ab .nm{font-weight:500;min-width:0}
+.ab .id{font:400 11.5px var(--mono);color:var(--muted)}
+.ab .note{grid-column:2/4;font-size:12px;color:var(--warn)}
+.ab.changed{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ab.off-limits .nm{color:var(--muted)}
+.sub{font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:10px 8px 2px}
+/* panels */
+.panel > *{min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:10px;min-width:0}
+.panel h2{font:700 15px var(--display);letter-spacing:.06em;text-transform:uppercase;margin:0}
+.panel h2 span{color:var(--muted);font:500 12px var(--body);letter-spacing:0;text-transform:none;margin-left:6px}
+.panel p{margin:0;color:var(--muted);font-size:13.5px;max-width:75ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:5px 6px 5px 12px;font-size:13px;background:var(--sunk);max-width:100%}
+.chip code{font:12px var(--mono);overflow-wrap:anywhere}
+.chip.bad{border-color:var(--warn);background:var(--warn-bg)}
+.chip button{padding:3px 8px;font-size:12px;border-radius:999px}
+.addrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.addrow input[list],.addrow #addId{flex:1 1 220px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 14px}
+.pgrid .sub{grid-column:1/-1;margin:8px 0 0}
+.pgrid .ab{--rc:var(--atb)}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:600px){.slots{grid-template-columns:1fr}}
+.slot{display:grid;gap:6px;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--sunk)}
+.slot label{font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.slot select{width:100%;font-size:15px}
+.slot.lead{border-color:var(--accent)}
+.slot.changed,.reserve label.changed{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent)}
+.reserve{display:flex;flex-wrap:wrap;gap:8px}
+.reserve label{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;background:var(--sunk);font-weight:500}
+.reserve label input{accent-color:var(--accent);width:16px;height:16px;margin:0}
+.warnbox{margin:0;background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:12px 14px;font-size:13.5px;max-width:none}
+.hmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.hmgrid label{display:grid;gap:6px;font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.hmgrid label span{display:flex;align-items:center;gap:6px;font:500 14px var(--body);letter-spacing:0;text-transform:none;color:var(--fg)}
+.hmgrid input{width:6.5em}
+.chips button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+#hmRows input{width:7.5em}
+#hmRows td.boss{font-weight:600}
+#hmRows .orig{display:block;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+/* inventory */
+.subtabs{display:flex;gap:6px;flex-wrap:wrap}
+.subtabs button{border-radius:999px;padding:8px 14px;font-size:13px}
+.subtabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid var(--sunk);vertical-align:middle}
+td.id{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+td.num{font-variant-numeric:tabular-nums;text-align:right}
+th.num{text-align:right}
+tr.changed td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+tr.new td:first-child::after{content:"new";font:600 10px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--ok);border:1px solid var(--ok);border-radius:4px;padding:2px 4px;margin-left:8px;vertical-align:2px}
+.step{display:inline-flex;gap:4px;align-items:center}
+.step b{min-width:2.2em;text-align:center;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+/* steps */
+.howto{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;font-size:13.5px;color:var(--muted)}
+.howto div{border-left:2px solid var(--line);padding-left:12px}
+.howto b{color:var(--fg);display:block;font:600 13px var(--display);letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
+code.p{font:12px var(--mono);overflow-wrap:anywhere;color:var(--fg)}
+/* sticky save bar */
+.savebar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+.savebar .in{max-width:1100px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.savebar .msg{flex:1 1 240px;min-width:0;font-size:13.5px;color:var(--muted)}
+.savebar .msg b{color:var(--fg)}
+.savebar .msg.ok b{color:var(--ok)}
+@media (prefers-reduced-motion:no-preference){.ab,.char,button{transition:background-color .12s,border-color .12s}}
+</style>
+
+<div class="wrap">
+  <div>
+    <h1><small>Final Fantasy XIII · PC save editor</small>Crystarium Save Editor</h1>
+    <p class="lede">Set each character's abilities, passives and ATB segments, choose your party, make enemies tougher, and edit your items, weapons, accessories and components. Open an <code class="p">ff13-XX.dat</code> save, make changes, then save the edited copy. Everything runs in this page; your save is not uploaded anywhere.</p>
+  </div>
+
+  <div class="filebar" id="drop">
+    <div class="meta" id="meta"><b>Example party</b><span class="tag">Example</span><div>Open your save to edit it. This sample shows how the editor works.</div></div>
+    <input type="file" id="file" accept=".dat" hidden>
+    <button class="primary" id="openBtn" type="button">Open save file…</button>
+  </div>
+  <p class="err" id="err" hidden></p>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tabParty" aria-selected="true">Characters</button>
+    <button type="button" role="tab" id="tabLineup" aria-selected="false">Party</button>
+    <button type="button" role="tab" id="tabInv" aria-selected="false">Inventory</button>
+    <button type="button" role="tab" id="tabHard" aria-selected="false">Hard mode</button>
+  </div>
+
+  <div class="view" id="viewParty">
+    <div class="rail" id="rail" role="group" aria-label="Characters"></div>
+
+    <section class="atb" aria-label="ATB segments">
+      <h2 id="atbTitle">ATB</h2>
+      <div class="segs" id="segs"></div>
+      <p>Number of ATB segments in battle. The game's normal maximum is 6.</p>
+    </section>
+
+    <div class="tools">
+      <label for="showAll"><input type="checkbox" id="showAll"> Show other characters' exclusive abilities</label>
+      <div class="acts">
+        <select id="copyTo" class="mini" aria-label="Copy this ability list to another character"></select>
+        <button class="mini" id="resetChar" type="button">Undo changes for this character</button>
+      </div>
+    </div>
+
+    <div class="roles" id="roles"></div>
+
+    <section class="panel" id="passives">
+      <h2>Passives<span class="tag">Experimental</span></h2>
+      <p>The game normally grants these through equipped weapons and accessories. Ticking one writes it into this character's ability list. It isn't confirmed that the game applies passives listed this way, so check in battle (Auto Haste should start the fight with Haste).</p>
+      <div class="pgrid" id="pgrid"></div>
+    </section>
+
+    <section class="panel" id="other">
+      <h2>Other entries</h2>
+      <p>Entries in this character's list that aren't regular Crystarium abilities, such as weapon passives or damaged text from earlier edits. Entries marked in amber don't match any ability ID the game uses; removing them is usually safe.</p>
+      <div class="chips" id="chips"></div>
+      <div class="addrow">
+        <input id="addId" placeholder="Add an ability ID, e.g. auto_hast" maxlength="15" spellcheck="false" autocomplete="off">
+        <button type="button" id="addBtn">Add</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="view" id="viewLineup" hidden>
+    <section class="panel">
+      <h2>Battle team</h2>
+      <p>The leader is the character you control in the field. Up to three characters fight; the leader slot can't be empty.</p>
+      <div class="slots" id="slots"></div>
+    </section>
+    <section class="panel">
+      <h2>Reserve<span id="resCount"></span></h2>
+      <p>Characters in the party but not fighting. You can swap them in from the Paradigm menu in game.</p>
+      <div class="reserve" id="reserve"></div>
+    </section>
+    <p class="warnbox">Story events can reset the party when a chapter changes it. A character added before they normally join may have no roles or abilities yet, and their paradigms may be blank; give them abilities on the Characters tab and check the Paradigm menu before a fight.</p>
+  </div>
+
+  <div class="view" id="viewInv" hidden>
+    <div class="subtabs" role="tablist" id="subtabs"></div>
+    <section class="panel" id="invPanel"></section>
+  </div>
+
+  <div class="view" id="viewHard" hidden>
+    <section class="panel">
+      <h2>Enemy data</h2>
+      <p>Enemy stats live in the game's own files, not in your save, so hard mode changes the game itself. Open these files from <code class="p">FINAL FANTASY XIII\white_data\sys</code>: <b>filelistu.win32.bin</b> and <b>white_imgu.win32.bin</b> (English voices). Add <b>filelistc.win32.bin</b> and <b>white_imgc.win32.bin</b> too so it works with either voice setting. The big file is only read in part; nothing is uploaded.</p>
+      <div class="addrow"><input type="file" id="hmFiles" multiple hidden><button type="button" class="primary" id="hmOpen">Choose game files…</button><span class="muted" id="hmLoaded" style="font-size:13px">No game files loaded. The list below shows a few example enemies.</span></div>
+      <p class="warnbox" id="hmWarn" hidden></p>
+    </section>
+    <section class="panel">
+      <h2>Difficulty</h2>
+      <div class="chips" id="hmPresets"></div>
+      <div class="hmgrid">
+        <label for="hmHp">Enemy HP<span><input type="number" id="hmHp" min="10" max="2000" step="5" value="100"> %</span></label>
+        <label for="hmStr">Strength<span><input type="number" id="hmStr" min="10" max="1000" step="5" value="100"> %</span></label>
+        <label for="hmMag">Magic<span><input type="number" id="hmMag" min="10" max="1000" step="5" value="100"> %</span></label>
+        <label for="hmCp">CP reward<span><input type="number" id="hmCp" min="0" max="1000" step="5" value="100"> %</span></label>
+        <label for="hmScope">Apply to<span><select id="hmScope"><option value="all">All enemies</option><option value="boss">Bosses only</option><option value="normal">Regular enemies only</option></select></span></label>
+      </div>
+      <p>Percentages apply to the original values. Values you type into the table below override them for that enemy.</p>
+    </section>
+    <section class="panel">
+      <h2>Enemies<span id="hmCount"></span></h2>
+      <div class="addrow"><input type="text" id="hmFind" placeholder="Filter by name or ID, e.g. Long Gui" autocomplete="off"><label class="muted" style="font-size:13px"><input type="checkbox" id="hmOnlyChanged"> Only edited</label></div>
+      <div class="tbl"><table><thead><tr><th>Enemy</th><th class="id">ID</th><th class="num">Lv</th><th class="num">HP</th><th class="num">Strength</th><th class="num">Magic</th><th class="num">CP</th><th></th></tr></thead><tbody id="hmRows"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h2>Install</h2>
+      <p>"Build hard mode" gives you a zip. Extract it into your FINAL FANTASY XIII folder (next to FFXiiiLauncher.exe), close the game, and run <b>install.bat</b>. It backs up the original data first; <b>restore.bat</b> puts it back. Your saves aren't touched.</p>
+      <div class="addrow"><button type="button" class="primary" id="hmBuild" disabled>Build hard mode</button><span class="muted" id="hmStatus" style="font-size:13px"></span></div>
+    </section>
+  </div>
+
+  <section class="howto" aria-label="How to use">
+    <div><b>1 · Back up</b>Close the game. Copy your save folder somewhere safe first. Steam keeps saves in <code class="p">Steam\userdata\&lt;id&gt;\292120\remote</code>.</div>
+    <div><b>2 · Edit</b>Pick a character to set abilities and ATB, set the battle team on Party, or switch to Inventory. Equipped accessories can't be removed; unequip them in game first.</div>
+    <div><b>3 · Put it back</b>"Save edited file" gives you the edited save (inside a .zip when this page is opened in Claude). Put the <code class="p">.dat</code> into the save folder, replacing the original. If Steam reports a cloud conflict, keep the local file.</div>
+  </section>
+</div>
+
+<div class="savebar"><div class="in">
+  <div class="msg" id="status">Example data. Open a save to start editing.</div>
+  <button type="button" id="revertAll">Undo all</button>
+  <button type="button" class="primary" id="saveBtn" disabled>Save edited file</button>
+</div></div>
+
+<datalist id="dl-items"></datalist><datalist id="dl-weapons"></datalist><datalist id="dl-accs"></datalist><datalist id="dl-mats"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script>
+/*CORE*/
+/*HM*/
+const DATA = /*DATA*/;
+(() => {
+  const ROLES = [
+    ['COM','Commando','--com'],['RAV','Ravager','--rav'],['SEN','Sentinel','--sen'],
+    ['SYN','Synergist','--syn'],['SAB','Saboteur','--sab'],['MED','Medic','--med'],['TEC','Techniques','--tec']];
+  const CH = FF13.CHARS;
+  const groups = new Map(), byId = new Map();
+  for (const [id, name, role, chars, auto] of DATA.A) {
+    const k = role + '|' + name;
+    if (!groups.has(k)) groups.set(k, { key: k, name, role, auto: !!auto, vars: [] });
+    const g = groups.get(k); g.vars.push({ id, chars }); byId.set(id, g);
+  }
+  const baseId = id => id.replace(/^c00\d_/, '');
+  const G = [...groups.values()].sort((a, b) => (a.auto - b.auto) || baseId(a.vars[0].id).localeCompare(baseId(b.vars[0].id)));
+  function pick(g, c) {
+    const ok = g.vars.find(v => v.chars.includes(c.letter)) || g.vars.find(v => !v.chars);
+    if (ok) return { id: ok.id, fits: true };
+    const owners = [...new Set(g.vars.flatMap(v => [...v.chars]))].map(l => CH.find(x => x.letter === l).name);
+    return { id: g.vars[0].id, fits: false, owners };
+  }
+  // Item catalogs
+  const CAT = { items: DATA.I.it, weapons: DATA.I.wea, accs: DATA.I.acc, mats: DATA.I.mat };
+  const NAME = new Map([...DATA.I.it, ...DATA.I.wea, ...DATA.I.acc, ...DATA.I.mat]);
+  const nameOf = id => NAME.get(id) || '';
+  for (const [k, list] of Object.entries(CAT)) document.getElementById('dl-' + k).innerHTML =
+    list.map(([id, n]) => `<option value="${n.replace(/"/g, '&quot;')}"></option>`).join('');
+  let pickMsg = '';
+  function idFromInput(k, v) {
+    v = v.trim(); const lv = v.toLowerCase(); pickMsg = '';
+    if (!v) { pickMsg = 'Type a name first.'; return null; }
+    const hit = CAT[k].find(([id, n]) => n.toLowerCase() === lv || id === v); if (hit) return hit[0];
+    const part = CAT[k].filter(([, n]) => n.toLowerCase().includes(lv));
+    if (part.length === 1) return part[0][0];
+    if (part.length > 1) { pickMsg = `Several match "${v}": ${part.slice(0, 4).map(p => p[1]).join(', ')}${part.length > 4 ? '…' : ''}. Pick one from the list.`; return null; }
+    if (/^[\x21-\x7e]{1,15}$/.test(v) && v.includes('_')) return v;
+    pickMsg = `Nothing matches "${v}". Pick a name from the list, or type an exact ID such as it_elixir.`; return null;
+  }
+
+  // ---- state
+  const EXAMPLE = {
+    ab: {
+      lightning: ['c000_at010_00','at520_00','at010_10','at010_20','mb200_00','mw000_00','tp100_00','aat500_00'],
+      snow: ['c001_at900_00','at010_00','ac100_00','gd010_00','mb100_00','tp100_00'],
+      sazz: ['c002_at010_00','c002_at520_00','me000_00','me010_00','me020_00','tp100_00'],
+      hope: ['c003_at010_00','mb400_00','mb410_00','mw000_00','mw010_00','me500_00','tp100_00'],
+      vanira: ['c004_at010_00','mb300_00','mw000_00','mg020_00','mg500_00','tp100_00'],
+      fang: ['at010_00','at520_00','ac100_00','gd010_00','mg000_00','tp100_00'] },
+    atb: { lightning: 3, snow: 3, sazz: 3, hope: 3, vanira: 3, fang: 3 },
+    party: { battle: ['lightning', 'snow', 'vanira'], reserve: ['sazz', 'hope'] },
+    inv: {
+      items: [{ id: 'it_potion', count: 12 }, { id: 'it_phenxtal', count: 4 }, { id: 'it_libra', count: 2 }],
+      mats: [{ id: 'material_m000', count: 6 }, { id: 'material_j046', count: 1 }],
+      weapons: [{ idx: 2, id: 'wea_lig_001', equipped: true, level: 3, ref: '0000000_0000002' }, { idx: 3, id: 'wea_fan_001', equipped: true, level: 1, ref: '0000000_0000003' }],
+      accs: [{ idx: 0, id: 'acc_000_000', equipped: true, level: 2, ref: '0000000_0000000' }, { idx: 1, id: 'acc_000_100', equipped: false, level: 1, ref: '0000000_0000001' }] }
+  };
+  const clone = o => JSON.parse(JSON.stringify(o));
+  let save = null, fileName = '', active = 'lightning', view = 'party', sub = 'items';
+  let orig = clone(EXAMPLE), cur = clone(EXAMPLE);
+  try { const t = localStorage.getItem('ff13.showAll'); if (t) document.getElementById('showAll').checked = t === '1'; } catch {}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const sameArr = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const abChanged = k => !sameArr(orig.ab[k], cur.ab[k]);
+  const atbChanged = k => orig.atb[k] !== cur.atb[k];
+  const charChanged = k => abChanged(k) || atbChanged(k);
+  const bagChanged = k => JSON.stringify(orig.inv[k]) !== JSON.stringify(cur.inv[k]);
+  const partyChanged = () => JSON.stringify(orig.party) !== JSON.stringify(cur.party);
+  const invChanged = () => ['items', 'weapons', 'mats', 'accs'].some(bagChanged);
+
+  // ---------- Party
+  function renderRail() {
+    $('rail').innerHTML = CH.map(c => `<button type="button" class="char" aria-pressed="${c.key === active}" data-k="${c.key}">
+      <span class="n">${c.name}${charChanged(c.key) ? '<span class="dot" title="Edited"></span>' : ''}</span>
+      <span class="gauge" aria-label="${cur.atb[c.key]} ATB segments">${[1,2,3,4,5,6].map(i => `<i class="${i <= cur.atb[c.key] ? 'on' : ''}"></i>`).join('')}</span>
+      <span class="c">${cur.atb[c.key]} ATB · ${cur.ab[c.key].length} abilities</span></button>`).join('');
+  }
+  function renderAtb() {
+    const c = CH.find(x => x.key === active);
+    $('atbTitle').textContent = c.name + "'s ATB";
+    $('segs').innerHTML = [1,2,3,4,5,6].map(i => `<button type="button" data-seg="${i}" class="${i <= cur.atb[active] ? 'on' : ''}" aria-pressed="${i === cur.atb[active]}" aria-label="${i} segments">${i}</button>`).join('');
+  }
+  function renderRoles() {
+    const c = CH.find(x => x.key === active), list = new Set(cur.ab[active]), was = new Set(orig.ab[active]);
+    const showAll = $('showAll').checked;
+    $('roles').innerHTML = ROLES.map(([r, label, col]) => {
+      let rows = '', lastAuto = false, n = 0, shown = 0;
+      for (const g of G.filter(g => g.role === r)) {
+        const p = pick(g, c), have = g.vars.some(v => list.has(v.id));
+        if (!p.fits && !have && !showAll) continue;
+        shown++; if (have) n++;
+        if (g.auto && !lastAuto) { rows += `<div class="sub">Passive</div>`; lastAuto = true; }
+        const hadBefore = g.vars.some(v => was.has(v.id));
+        const ids = g.vars.filter(v => list.has(v.id)).map(v => v.id);
+        const note = p.fits ? (have && !ids.includes(p.id) ? `This is another character's version. Untick and tick again to switch to ${c.name}'s own.` : '')
+                            : `Made for ${p.owners.join(', ')}. It may not animate or work on ${c.name}.`;
+        rows += `<label class="ab${hadBefore !== have ? ' changed' : ''}${p.fits ? '' : ' off-limits'}">
+          <input type="checkbox" data-g="${esc(g.key)}" ${have ? 'checked' : ''}>
+          <span class="nm">${esc(g.name)}</span><span class="id">${esc(ids[0] || p.id)}</span>
+          ${note ? `<span class="note">${note}</span>` : ''}</label>`;
+      }
+      if (!shown) return '';
+      return `<section class="role" style="--rc:var(${col})"><header><h2>${label}<span>${n} of ${shown}</span></h2>
+        <button class="mini" type="button" data-all="${r}">All</button><button class="mini" type="button" data-none="${r}">None</button></header>${rows}</section>`;
+    }).join('');
+  }
+  const PSET = new Map(DATA.PS.map(p => [p[0], p]));
+  const PGROUPS = [['buff', 'Auto-cast buffs'], ['battle', 'Battle and rewards'], ['weapon', 'Weapon traits']];
+  function renderPassives() {
+    const L = new Set(cur.ab[active]), was = new Set(orig.ab[active]);
+    $('pgrid').innerHTML = PGROUPS.map(([g, label]) => `<div class="sub">${label}</div>` +
+      DATA.PS.filter(p => p[2] === g).map(([id, nm]) => `<label class="ab${L.has(id) !== was.has(id) ? ' changed' : ''}">
+        <input type="checkbox" data-pas="${esc(id)}" ${L.has(id) ? 'checked' : ''}><span class="nm">${esc(nm)}</span><span class="id">${esc(id)}</span></label>`).join('')).join('');
+  }
+  function renderOther() {
+    const extra = cur.ab[active].filter(id => !byId.has(id) && !PSET.has(id));
+    $('chips').innerHTML = extra.length ? extra.map(id => {
+      const nm = DATA.P[id] || (id === 'sm000' ? 'Summon (built-in entry, keep it)' : '');
+      return `<span class="chip${nm ? '' : ' bad'}">${nm ? esc(nm) + ' ' : ''}<code>${esc(id)}</code><button type="button" data-rm="${esc(id)}" aria-label="Remove ${esc(id)}">Remove</button></span>`;
+    }).join('') : '<span class="muted" style="font-size:13px">None for this character.</span>';
+  }
+
+  // ---------- Party lineup
+  const cname = k => (CH.find(c => c.key === k) || { name: k }).name;
+  function renderLineup() {
+    const P = cur.party, O = orig.party;
+    $('slots').innerHTML = [0, 1, 2].map(i => `<div class="slot${i === 0 ? ' lead' : ''}${(P.battle[i] || '') !== (O.battle[i] || '') ? ' changed' : ''}">
+      <label for="slot${i}">${i === 0 ? 'Leader' : 'Member ' + (i + 1)}</label>
+      <select id="slot${i}" data-slot="${i}">${i ? '<option value="">Empty</option>' : ''}${CH.map(c => `<option value="${c.key}" ${P.battle[i] === c.key ? 'selected' : ''}>${c.name}</option>`).join('')}</select></div>`).join('');
+    const rest = CH.filter(c => !P.battle.includes(c.key));
+    $('reserve').innerHTML = rest.map(c => `<label class="${P.reserve.includes(c.key) !== O.reserve.includes(c.key) ? 'changed' : ''}"><input type="checkbox" data-res="${c.key}" ${P.reserve.includes(c.key) ? 'checked' : ''}>${c.name}</label>`).join('') || '<span class="muted">Everyone is in the battle team.</span>';
+    $('resCount').textContent = `${P.battle.length + P.reserve.length} of 6 in party`;
+  }
+  // ---------- Inventory
+  const SUBS = [['items', 'Consumables'], ['weapons', 'Weapons'], ['accs', 'Accessories'], ['mats', 'Components']];
+  const GEAR = new Set(['weapons', 'accs']);
+  const OWNER = { lig: 'Lightning', sno: 'Snow', saz: 'Sazh', hop: 'Hope', van: 'Vanille', fan: 'Fang' };
+  let gearFilter = '';
+  function renderInv() {
+    $('subtabs').innerHTML = SUBS.map(([k, l]) => `<button type="button" role="tab" data-sub="${k}" aria-selected="${k === sub}">${l} (${cur.inv[k].length})${bagChanged(k) ? ' •' : ''}</button>`).join('');
+    const P = $('invPanel');
+    if (GEAR.has(sub)) {
+      const isW = sub === 'weapons', L = cur.inv[sub];
+      const origBy = new Map(orig.inv[sub].filter(a => a.idx >= 0).map(a => [a.idx, a]));
+      const rows = L.map((a, i) => ({ a, i, nm: nameOf(a.id) || (a.idx === -1 ? 'Unrecognized entry' : 'Unknown'), who: isW ? OWNER[a.id.slice(4, 7)] || '' : '' }))
+        .filter(r => !gearFilter || (r.nm + ' ' + r.a.id + ' ' + r.who).toLowerCase().includes(gearFilter.toLowerCase()))
+        .sort((x, y) => (x.who.localeCompare(y.who)) || x.nm.localeCompare(y.nm) || (x.a.level - y.a.level))
+        .map(({ a, i, nm, who }) => {
+          const o = origBy.get(a.idx), chg = a.idx === -2 || (o && o.level !== a.level);
+          return `<tr class="${chg ? 'changed' : ''}${a.idx === -2 ? ' new' : ''}">
+            <td>${esc(nm)}</td>${isW ? `<td>${who}</td>` : ''}<td class="id">${esc(a.id)}</td>
+            <td class="num">${a.idx === -1 ? '–' : `<input type="number" min="1" max="100" value="${a.level}" data-lvl="${i}" aria-label="Level of ${esc(nm)}">`}</td>
+            <td>${a.equipped ? '<span class="muted">Equipped</span>' : ''}</td>
+            <td class="num"><button class="mini" type="button" data-gdel="${i}" ${a.equipped ? 'disabled title="Unequip it in game first"' : ''}>Remove</button></td></tr>`;
+        }).join('');
+      P.innerHTML = `<h2>${isW ? 'Weapons' : 'Accessories'}<span>${L.length} of ${FF13.BAGS[sub].n} slots</span></h2>
+        <p>Each copy is listed separately with its own level. Equipped ${isW ? 'weapons' : 'accessories'} can't be removed. Levels above an item's normal maximum may be clamped or behave oddly in game.</p>
+        <div class="addrow"><input type="text" id="gearFind" placeholder="Filter by name${isW ? ' or character' : ''}" value="${esc(gearFilter)}" autocomplete="off">
+          <label class="muted" for="bulkLvl" style="font-size:13px">Set all shown to level</label><input type="number" id="bulkLvl" min="1" max="100" value="1"><button type="button" class="mini" id="bulkApply">Apply</button></div>
+        <div class="tbl"><table><thead><tr><th>${isW ? 'Weapon' : 'Accessory'}</th>${isW ? '<th>For</th>' : ''}<th class="id">ID</th><th class="num">Level</th><th></th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">Nothing here.</td></tr>`}</tbody></table></div>
+        <div class="addrow"><input list="dl-${sub}" id="newId" placeholder="${isW ? 'Weapon name, e.g. Omega Weapon' : 'Accessory name, e.g. Genji Glove'}" autocomplete="off">
+          <label class="muted" for="newQty" style="font-size:13px">Copies</label><input type="number" id="newQty" min="1" max="20" value="1">
+          <label class="muted" for="newLvl" style="font-size:13px">Level</label><input type="number" id="newLvl" min="1" max="100" value="1"><button type="button" id="newAdd">Add</button></div>`;
+      return;
+    }
+    const list = cur.inv[sub], om = new Map(orig.inv[sub].map(e => [e.id, e.count]));
+    const label = sub === 'items' ? 'Item' : 'Component';
+    const rows = list.map((e, i) => `<tr class="${om.get(e.id) !== e.count ? 'changed' : ''}${om.has(e.id) ? '' : ' new'}">
+      <td>${esc(nameOf(e.id) || 'Unknown')}</td><td class="id">${esc(e.id)}</td>
+      <td class="num"><input type="number" min="1" max="${FF13.MAXQ}" value="${e.count}" data-qty="${i}" aria-label="Quantity of ${esc(nameOf(e.id) || e.id)}"></td>
+      <td class="num"><button class="mini" type="button" data-del="${i}">Remove</button></td></tr>`).join('');
+    P.innerHTML = `<h2>${sub === 'items' ? 'Consumables' : 'Components'}<span>${list.length} of ${FF13.BAGS[sub].n} slots</span></h2>
+      <p>Quantities go from 1 to ${FF13.MAXQ}. Removing an entry takes the item out of your inventory.</p>
+      <div class="tbl"><table><thead><tr><th>${label}</th><th class="id">ID</th><th class="num">Quantity</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="muted">None.</td></tr>`}</tbody></table></div>
+      <div class="addrow"><input list="dl-${sub}" id="newId" placeholder="${sub === 'items' ? 'Item name, e.g. Elixir' : 'Component name, e.g. Trapezohedron'}" autocomplete="off"><input type="number" id="newQty" min="1" max="${FF13.MAXQ}" value="${sub === 'items' ? 99 : 1}" aria-label="Quantity"><button type="button" id="newAdd">Add</button></div>`;
+  }
+
+  function renderStatus() {
+    const edited = CH.filter(c => charChanged(c.key)).map(c => c.name);
+    if (partyChanged()) edited.push('party');
+    if (invChanged()) edited.push('inventory');
+    $('saveBtn').disabled = !save || !edited.length;
+    $('revertAll').disabled = !edited.length;
+    const st = $('status'); st.classList.remove('ok');
+    if (!save) st.innerHTML = 'Example data. Open a save to start editing.';
+    else if (!edited.length) st.innerHTML = `<b>${esc(fileName)}</b> · no changes yet`;
+    else st.innerHTML = `<b>${esc(fileName)}</b> · edited: ${edited.join(', ')}`;
+    $('tabParty').innerHTML = 'Characters' + (CH.some(c => charChanged(c.key)) ? '<span class="dot"></span>' : '');
+    $('tabLineup').innerHTML = 'Party' + (partyChanged() ? '<span class="dot"></span>' : '');
+    $('tabInv').innerHTML = 'Inventory' + (invChanged() ? '<span class="dot"></span>' : '');
+  }
+  function render() {
+    $('viewParty').hidden = view !== 'party'; $('viewInv').hidden = view !== 'inv'; $('viewLineup').hidden = view !== 'lineup'; $('viewHard').hidden = view !== 'hard';
+    $('tabHard').setAttribute('aria-selected', view === 'hard');
+    document.querySelector('.savebar').hidden = view === 'hard'; $('drop').hidden = view === 'hard';
+    $('tabParty').setAttribute('aria-selected', view === 'party'); $('tabInv').setAttribute('aria-selected', view === 'inv'); $('tabLineup').setAttribute('aria-selected', view === 'lineup');
+    if (view === 'party') { renderRail(); renderAtb(); renderRoles(); renderPassives(); renderOther();
+      $('copyTo').innerHTML = '<option value="">Copy abilities to…</option>' + CH.filter(c => c.key !== active).map(c => `<option value="${c.key}">${c.name}</option>`).join(''); }
+    else if (view === 'lineup') renderLineup();
+    else if (view === 'hard') renderHard();
+    else renderInv();
+    renderStatus();
+  }
+
+  function setGroup(g, on) {
+    const c = CH.find(x => x.key === active), L = cur.ab[active];
+    if (on) { if (!g.vars.some(v => L.includes(v.id))) L.push(pick(g, c).id); }
+    else cur.ab[active] = L.filter(id => !g.vars.some(v => v.id === id));
+  }
+  function limit() {
+    if (cur.ab[active].length > FF13.CAP) { cur.ab[active] = cur.ab[active].slice(0, FF13.CAP); showErr(`A character can hold at most ${FF13.CAP} entries; extra ones were dropped.`); }
+  }
+  function showErr(m) { const e = $('err'); e.textContent = m; e.hidden = !m; }
+
+  // ---- events: tabs
+  $('tabParty').addEventListener('click', () => { view = 'party'; render(); });
+  $('tabInv').addEventListener('click', () => { view = 'inv'; render(); });
+  $('tabLineup').addEventListener('click', () => { view = 'lineup'; render(); });
+  $('tabHard').addEventListener('click', () => { view = 'hard'; render(); });
+  // party
+  $('rail').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return; active = b.dataset.k; render(); });
+  $('segs').addEventListener('click', e => { const b = e.target.closest('[data-seg]'); if (!b) return; cur.atb[active] = +b.dataset.seg; render(); });
+  $('roles').addEventListener('change', e => { const k = e.target.dataset.g; if (!k) return; setGroup(groups.get(k), e.target.checked); limit(); render(); });
+  $('roles').addEventListener('click', e => {
+    const all = e.target.dataset.all, none = e.target.dataset.none; if (!all && !none) return;
+    const c = CH.find(x => x.key === active), showAll = $('showAll').checked;
+    for (const g of G.filter(g => g.role === (all || none))) { if (all && !pick(g, c).fits && !showAll) continue; setGroup(g, !!all); }
+    limit(); render();
+  });
+  $('showAll').addEventListener('change', e => { try { localStorage.setItem('ff13.showAll', e.target.checked ? '1' : '0'); } catch {} renderRoles(); });
+  $('pgrid').addEventListener('change', e => { const id = e.target.dataset.pas; if (!id) return;
+    if (e.target.checked) { if (!cur.ab[active].includes(id)) cur.ab[active].push(id); } else cur.ab[active] = cur.ab[active].filter(x => x !== id);
+    limit(); render(); });
+  $('chips').addEventListener('click', e => { const id = e.target.dataset.rm; if (!id) return; cur.ab[active] = cur.ab[active].filter(x => x !== id); render(); });
+  $('addBtn').addEventListener('click', () => {
+    const id = $('addId').value.trim();
+    if (!/^[\x21-\x7e]{1,15}$/.test(id)) { showErr('Ability IDs are 1–15 plain characters with no spaces, like mb020_00.'); return; }
+    showErr(''); if (!cur.ab[active].includes(id)) cur.ab[active].push(id); $('addId').value = ''; limit(); render();
+  });
+  $('addId').addEventListener('keydown', e => { if (e.key === 'Enter') $('addBtn').click(); });
+  $('resetChar').addEventListener('click', () => { cur.ab[active] = [...orig.ab[active]]; cur.atb[active] = orig.atb[active]; render(); });
+  $('revertAll').addEventListener('click', () => { cur = clone(orig); render(); });
+  $('copyTo').addEventListener('change', e => {
+    const to = e.target.value; if (!to) return;
+    const tc = CH.find(x => x.key === to), out = [];
+    for (const id of cur.ab[active]) { const g = byId.get(id); const nid = g ? pick(g, tc).id : id; if (!out.includes(nid)) out.push(nid); }
+    cur.ab[to] = out.slice(0, FF13.CAP); active = to; render();
+  });
+  // party lineup
+  $('slots').addEventListener('change', e => {
+    const i = +e.target.dataset.slot, k = e.target.value, P = cur.party;
+    const slots = [P.battle[0] || '', P.battle[1] || '', P.battle[2] || ''];
+    const prev = slots[i], j = slots.indexOf(k);
+    if (k && j >= 0 && j !== i) slots[j] = prev; // picked someone already fighting: swap them
+    slots[i] = k;
+    P.battle = slots.filter(Boolean);
+    P.reserve = P.reserve.filter(x => !P.battle.includes(x));
+    if (prev && !P.battle.includes(prev) && !P.reserve.includes(prev)) P.reserve.push(prev); // keep them in the party
+    render();
+  });
+  $('reserve').addEventListener('change', e => {
+    const k = e.target.dataset.res; if (!k) return; const P = cur.party;
+    if (e.target.checked) { if (P.battle.length + P.reserve.length >= 6) { e.target.checked = false; return; } P.reserve.push(k); }
+    else P.reserve = P.reserve.filter(x => x !== k);
+    render();
+  });
+  // inventory
+  $('subtabs').addEventListener('click', e => { const b = e.target.closest('[data-sub]'); if (!b) return; sub = b.dataset.sub; gearFilter = ''; showErr(''); render(); });
+  $('invPanel').addEventListener('input', e => {
+    if (e.target.id !== 'gearFind') return;
+    gearFilter = e.target.value; const pos = e.target.selectionStart; renderInv();
+    const f = $('gearFind'); f.focus(); f.setSelectionRange(pos, pos);
+  });
+  $('invPanel').addEventListener('change', e => {
+    if (e.target.dataset.lvl !== undefined) {
+      const a = cur.inv[sub][+e.target.dataset.lvl], v = Math.round(+e.target.value);
+      if (!(v >= 1 && v <= 100)) { showErr('Levels go from 1 to 100.'); e.target.value = a.level; return; }
+      showErr(''); a.level = v; render(); return;
+    }
+    const i = e.target.dataset.qty; if (i === undefined) return;
+    const v = Math.round(+e.target.value);
+    if (!(v >= 1 && v <= FF13.MAXQ)) { showErr(`Quantity must be 1–${FF13.MAXQ}. Use Remove to take an item out.`); e.target.value = cur.inv[sub][i].count; return; }
+    showErr(''); cur.inv[sub][i].count = v; render();
+  });
+  $('invPanel').addEventListener('click', e => {
+    const t = e.target;
+    if (t.dataset.del !== undefined) { cur.inv[sub].splice(+t.dataset.del, 1); render(); return; }
+    if (t.dataset.gdel !== undefined) { const a = cur.inv[sub][+t.dataset.gdel]; if (a && !a.equipped) cur.inv[sub].splice(+t.dataset.gdel, 1); render(); return; }
+    if (t.id === 'bulkApply') {
+      const v = Math.round(+$('bulkLvl').value); if (!(v >= 1 && v <= 100)) { showErr('Levels go from 1 to 100.'); return; }
+      const f = gearFilter.toLowerCase(), isW = sub === 'weapons';
+      for (const a of cur.inv[sub]) {
+        if (a.idx === -1) continue;
+        const hay = ((nameOf(a.id) || '') + ' ' + a.id + ' ' + (isW ? OWNER[a.id.slice(4, 7)] || '' : '')).toLowerCase();
+        if (!f || hay.includes(f)) a.level = v;
+      }
+      showErr(''); render(); return;
+    }
+    if (t.id === 'newAdd') {
+      const id = idFromInput(sub, $('newId').value), q = Math.round(+$('newQty').value);
+      if (!id) { showErr(pickMsg); return; }
+      if (GEAR.has(sub)) {
+        const lv = Math.round(+$('newLvl').value);
+        if (!(q >= 1 && q <= 20)) { showErr('Add between 1 and 20 at a time.'); return; }
+        if (!(lv >= 1 && lv <= 100)) { showErr('Levels go from 1 to 100.'); return; }
+        addGear(id, q, lv); return;
+      }
+      if (!(q >= 1 && q <= FF13.MAXQ)) { showErr(`Quantity must be 1–${FF13.MAXQ}.`); return; }
+      const L = cur.inv[sub], ex = L.find(x => x.id === id);
+      if (ex) ex.count = Math.min(FF13.MAXQ, ex.count + q);
+      else { if (L.length >= FF13.BAGS[sub].n) { showErr('That bag is full.'); return; } L.push({ id, count: q }); }
+      showErr(''); render();
+    }
+  });
+  $('invPanel').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'newId') $('newAdd').click(); });
+  function addGear(id, q, lv) {
+    if (cur.inv[sub].length + q > FF13.BAGS[sub].n) { showErr(`You can hold at most ${FF13.BAGS[sub].n} of these.`); return; }
+    for (let i = 0; i < q; i++) cur.inv[sub].push({ idx: -2, id, equipped: false, level: lv });
+    showErr(''); render();
+  }
+
+  // ---------- Hard mode (game data: db/resident/bt_chara_spec.wdb)
+  const PRESETS = [['Original', 100, 100, 100, 100], ['Hard', 150, 125, 125, 100], ['Very hard', 200, 150, 150, 100], ['Brutal', 300, 200, 200, 100]];
+  const HMX = [ // example rows before any game files are loaded
+    { id: 'm001', hp: 375, str: 15, mag: 0, cp: 3, lv: 22 }, { id: 'm002', hp: 6300, str: 89, mag: 35, cp: 48, lv: 11 },
+    { id: 'm003', hp: 30600, str: 225, mag: 93, cp: 440, lv: 5 }, { id: 'm004', hp: 96800, str: 417, mag: 417, cp: 780, lv: 9 }];
+  const hm = { recs: HMX, wdb: null, variants: [], mult: { hp: 100, str: 100, mag: 100, cp: 100 }, scope: 'all', ov: new Map(), find: '', onlyChanged: false, example: true };
+  const enemyName = id => DATA.BOSS[id] || DATA.EN[id] || (DATA.EN[id.split('_')[0]] ? DATA.EN[id.split('_')[0]] + ' (' + id.split('_').slice(1).join(' ') + ')' : '') || (DATA.EN[id.replace(/[a-z]+$/, '')] ? DATA.EN[id.replace(/[a-z]+$/, '')] + ' (variant)' : '');
+  const isBoss = id => id in DATA.BOSS;
+  const inScope = id => hm.scope === 'all' || (hm.scope === 'boss') === isBoss(id);
+  function hmValue(r) {
+    const o = hm.ov.get(r.id) || {}, m = inScope(r.id) ? hm.mult : { hp: 100, str: 100, mag: 100, cp: 100 };
+    const f = (k, max) => o[k] !== undefined ? o[k] : Math.min(max, Math.round(r[k] * m[k] / 100));
+    return { hp: Math.max(1, f('hp', 0xFFFFFF)), str: f('str', 65535), mag: f('mag', 65535), cp: f('cp', 0xFFFFFF) };
+  }
+  const hmChanged = r => { const v = hmValue(r); return v.hp !== r.hp || v.str !== r.str || v.mag !== r.mag || v.cp !== r.cp; };
+  const fmt = n => n.toLocaleString('en-US');
+  function renderHard() {
+    $('hmPresets').innerHTML = PRESETS.map(([n, h, s, m, c]) => `<button type="button" class="mini${hm.mult.hp === h && hm.mult.str === s && hm.mult.mag === m && hm.mult.cp === c ? ' on' : ''}" data-preset="${n}">${n}${n === 'Original' ? '' : ` · HP ${h}%`}</button>`).join('');
+    $('hmHp').value = hm.mult.hp; $('hmStr').value = hm.mult.str; $('hmMag').value = hm.mult.mag; $('hmCp').value = hm.mult.cp; $('hmScope').value = hm.scope;
+    const f = hm.find.toLowerCase();
+    const list = hm.recs.filter(r => (!f || (enemyName(r.id) + ' ' + r.id).toLowerCase().includes(f)) && (!hm.onlyChanged || hmChanged(r)));
+    const shown = list.slice(0, 250);
+    $('hmRows').innerHTML = shown.map(r => {
+      const v = hmValue(r), o = hm.ov.get(r.id);
+      const cell = k => `<td class="num"><input type="number" min="${k === 'hp' ? 1 : 0}" value="${v[k]}" data-hm="${r.id}" data-k="${k}" aria-label="${k} of ${esc(enemyName(r.id) || r.id)}"><span class="orig">${v[k] !== r[k] ? 'was ' + fmt(r[k]) : ''}</span></td>`;
+      return `<tr class="${hmChanged(r) ? 'changed' : ''}"><td class="${isBoss(r.id) ? 'boss' : ''}">${esc(enemyName(r.id) || 'Unnamed')}${isBoss(r.id) ? ' <span class="muted">· boss</span>' : ''}</td><td class="id">${esc(r.id)}</td><td class="num">${r.lv}</td>
+        ${cell('hp')}${cell('str')}${cell('mag')}${cell('cp')}<td class="num">${o ? `<button class="mini" type="button" data-hmreset="${r.id}">Reset</button>` : ''}</td></tr>`;
+    }).join('') || '<tr><td colspan="8" class="muted">No enemies match.</td></tr>';
+    const nChanged = hm.recs.filter(hmChanged).length;
+    $('hmCount').textContent = `${hm.example ? 'Example · ' : ''}${list.length} shown${list.length > shown.length ? ' (first 250)' : ''} · ${nChanged} of ${hm.recs.length} changed`;
+    $('hmBuild').disabled = hm.example || !nChanged;
+    $('tabHard').innerHTML = 'Hard mode' + (!hm.example && nChanged ? '<span class="dot"></span>' : '');
+  }
+  const readSlice = async (file, off, len) => new Uint8Array(await file.slice(off, off + len).arrayBuffer());
+  async function streamThrough(u8, ts) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ts)).arrayBuffer()); }
+  const inflate = u8 => streamThrough(u8, new DecompressionStream('deflate'));
+  const deflate = u8 => (window.pako ? Promise.resolve(window.pako.deflate(u8, { level: 9 })) : streamThrough(u8, new CompressionStream('deflate')));
+  $('hmOpen').addEventListener('click', () => $('hmFiles').click());
+  $('hmFiles').addEventListener('change', async e => {
+    const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+    const st = $('hmLoaded'); st.textContent = 'Reading…'; $('hmWarn').hidden = true; showErr('');
+    try {
+      const by = n => files.find(f => f.name.toLowerCase() === n);
+      const variants = [];
+      for (const t of ['u', 'c']) {
+        const fl = by(`filelist${t}.win32.bin`), img = by(`white_img${t}.win32.bin`);
+        if (!fl && !img) continue;
+        if (!fl || !img) throw new Error(`Choose both filelist${t}.win32.bin and white_img${t}.win32.bin.`);
+        const flBytes = new Uint8Array(await fl.arrayBuffer());
+        const P = await HM.parseFilelist(flBytes, inflate), h = P.hit;
+        const region = await readSlice(img, h.sector * HM.SECTOR, h.room);
+        if (region.length !== h.room) throw new Error(`white_img${t}.win32.bin is shorter than expected.`);
+        const wdb = await inflate(region.subarray(0, h.cmp));
+        if (wdb.length !== h.uncmp) throw new Error('Enemy data size mismatch.');
+        variants.push({ t, fl: flBytes, P, imgSize: img.size, wdb, flsha: await HM.sha256hex(flBytes), blobsha: await HM.sha256hex(region.subarray(0, h.cmp)) });
+      }
+      let wdb = null;
+      if (variants.length) {
+        wdb = variants[0].wdb;
+        for (const v of variants) if (v.wdb.length !== wdb.length || v.wdb.some((x, i) => x !== wdb[i])) throw new Error('The English and Japanese archives have different enemy data; load one pair at a time.');
+      } else {
+        const w = files.find(f => /\.wdb$/i.test(f.name));
+        if (!w) throw new Error('Choose filelistu.win32.bin and white_imgu.win32.bin (or a bt_chara_spec.wdb).');
+        wdb = new Uint8Array(await w.arrayBuffer());
+      }
+      hm.recs = HM.parseWdb(wdb); hm.wdb = wdb; hm.variants = variants; hm.ov = new Map(); hm.example = false;
+      st.textContent = variants.length ? `Loaded ${hm.recs.length} enemies from ${variants.map(v => 'white_img' + v.t).join(' and ')}.` : `Loaded ${hm.recs.length} enemies from the .wdb file. Without the game files you'll get the edited .wdb only (for mod managers such as Nova Chrysalia).`;
+      if ((await HM.sha256hex(wdb)) !== DATA.REF) { $('hmWarn').textContent = 'This enemy data is different from the unmodified copy this editor was built with. If you installed hard mode before, run restore.bat first and load the files again, or your new percentages will stack on top of the old ones.'; $('hmWarn').hidden = false; }
+      renderHard();
+    } catch (err) { st.textContent = 'No game files loaded.'; showErr(err.message || String(err)); }
+  });
+  $('hmPresets').addEventListener('click', e => { const p = PRESETS.find(x => x[0] === e.target.dataset.preset); if (!p) return; [, hm.mult.hp, hm.mult.str, hm.mult.mag, hm.mult.cp] = p; renderHard(); });
+  for (const [id, k] of [['hmHp', 'hp'], ['hmStr', 'str'], ['hmMag', 'mag'], ['hmCp', 'cp']]) $(id).addEventListener('change', e => {
+    const v = Math.round(+e.target.value); if (!(v >= 0 && v <= 2000) || (k === 'hp' && v < 1)) { showErr('Use a percentage between 1 and 2000.'); e.target.value = hm.mult[k]; return; }
+    showErr(''); hm.mult[k] = v; renderHard();
+  });
+  $('hmScope').addEventListener('change', e => { hm.scope = e.target.value; renderHard(); });
+  $('hmFind').addEventListener('input', e => { hm.find = e.target.value; renderHard(); });
+  $('hmOnlyChanged').addEventListener('change', e => { hm.onlyChanged = e.target.checked; renderHard(); });
+  $('hmRows').addEventListener('change', e => {
+    const id = e.target.dataset.hm; if (!id) return; const k = e.target.dataset.k, v = Math.round(+e.target.value);
+    const max = k === 'hp' || k === 'cp' ? 0xFFFFFF : 65535;
+    if (!(v >= (k === 'hp' ? 1 : 0) && v <= max)) { showErr(`That value is out of range (max ${fmt(max)}).`); renderHard(); return; }
+    showErr(''); const o = hm.ov.get(id) || {}; o[k] = v; hm.ov.set(id, o); renderHard();
+  });
+  $('hmRows').addEventListener('click', e => { const id = e.target.dataset.hmreset; if (!id) return; hm.ov.delete(id); renderHard(); });
+
+  function psScripts(vs) {
+    const arr = vs.map(v => `  @{ t='${v.t}'; off=[long]${v.off}; room=${v.room}; oldcmp=${v.oldcmp}; flsha='${v.flsha}'; blobsha='${v.blobsha}' }`).join(",\r\n");
+    const common = `$ErrorActionPreference = 'Stop'\r\n$here = Split-Path -Parent $MyInvocation.MyCommand.Path\r\n$variants = @(\r\n${arr}\r\n)\r\n` +
+`function Find-Game {
+  $cands = @($here, (Split-Path -Parent $here), 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\FINAL FANTASY XIII')
+  foreach ($c in $cands) { if ($c -and (Test-Path -LiteralPath (Join-Path $c 'white_data\\sys'))) { return $c } }
+  throw "Couldn't find the FINAL FANTASY XIII folder. Extract this folder into the game folder (next to FFXiiiLauncher.exe) and run it again."
+}
+function Get-Sha([byte[]]$b) { $s = [Security.Cryptography.SHA256]::Create(); try { return (($s.ComputeHash($b) | ForEach-Object { $_.ToString('x2') }) -join '') } finally { $s.Dispose() } }
+function Read-At([string]$p, [long]$off, [int]$len) {
+  $fs = [IO.File]::Open($p, 'Open', 'Read', 'Read')
+  try {
+    $buf = New-Object byte[] $len; $fs.Position = $off; $n = 0
+    while ($n -lt $len) { $r = $fs.Read($buf, $n, $len - $n); if ($r -le 0) { throw "Unexpected end of $p" }; $n += $r }
+    return ,$buf
+  } finally { $fs.Close() }
+}
+function Write-At([string]$p, [long]$off, [byte[]]$b) {
+  $fs = [IO.File]::Open($p, 'Open', 'ReadWrite', 'None')
+  try { $fs.Position = $off; $fs.Write($b, 0, $b.Length); $fs.Flush() } finally { $fs.Close() }
+}
+`.replace(/\n/g, '\r\n');
+    const install = common + `try {
+  $game = Find-Game; $sys = Join-Path $game 'white_data\\sys'; $bk = Join-Path $game 'hardmode_backup'
+  Write-Host "Game folder: $game"
+  # Undo an earlier install from this tool first, so we always start from the original data.
+  foreach ($v in $variants) {
+    $breg = Join-Path $bk "region$($v.t).bin"; $bfl = Join-Path $bk "filelist$($v.t).win32.bin"
+    if ((Test-Path -LiteralPath $breg) -and (Test-Path -LiteralPath $bfl)) {
+      Write-At (Join-Path $sys "white_img$($v.t).win32.bin") $v.off ([IO.File]::ReadAllBytes($breg))
+      Copy-Item -LiteralPath $bfl -Destination (Join-Path $sys "filelist$($v.t).win32.bin") -Force
+      Write-Host "Restored the previous hard-mode backup for white_img$($v.t)."
+    }
+  }
+  # Check everything before writing anything.
+  foreach ($v in $variants) {
+    $fl = Join-Path $sys "filelist$($v.t).win32.bin"; $img = Join-Path $sys "white_img$($v.t).win32.bin"
+    if (-not (Test-Path -LiteralPath $fl) -or -not (Test-Path -LiteralPath $img)) { throw "Missing filelist$($v.t).win32.bin or white_img$($v.t).win32.bin." }
+    $h = (Get-FileHash -Algorithm SHA256 -LiteralPath $fl).Hash.ToLower()
+    if ($h -ne $v.flsha) { throw "filelist$($v.t).win32.bin is not the copy the editor read. Load your current game files into the editor again and rebuild." }
+    $reg = Read-At $img $v.off $v.room
+    $head = New-Object byte[] ($v.oldcmp); [Array]::Copy($reg, $head, $v.oldcmp)
+    if ((Get-Sha $head) -ne $v.blobsha) { throw "The enemy data in white_img$($v.t).win32.bin is not what the editor read. Load your current game files into the editor again and rebuild." }
+    $v.reg = $reg
+  }
+  New-Item -ItemType Directory -Force -Path $bk | Out-Null
+  foreach ($v in $variants) {
+    $breg = Join-Path $bk "region$($v.t).bin"; $bfl = Join-Path $bk "filelist$($v.t).win32.bin"
+    if (-not (Test-Path -LiteralPath $breg)) { [IO.File]::WriteAllBytes($breg, $v.reg); Copy-Item -LiteralPath (Join-Path $sys "filelist$($v.t).win32.bin") -Destination $bfl -Force }
+  }
+  foreach ($v in $variants) {
+    $patch = [IO.File]::ReadAllBytes((Join-Path $here "data\\region$($v.t).bin"))
+    if ($patch.Length -ne $v.room) { throw "data\\region$($v.t).bin is damaged; download the zip again." }
+    Write-At (Join-Path $sys "white_img$($v.t).win32.bin") $v.off $patch
+    Copy-Item -LiteralPath (Join-Path $here "data\\filelist$($v.t).win32.bin") -Destination (Join-Path $sys "filelist$($v.t).win32.bin") -Force
+  }
+  Write-Host "Hard mode installed. Run restore.bat to go back to the original enemies." -ForegroundColor Green
+} catch {
+  $e = $_.Exception; while ($e.InnerException) { $e = $e.InnerException }
+  Write-Host "Hard mode was not installed: $($e.Message)" -ForegroundColor Red
+  Write-Host "If the game is running, close it and try again."
+}
+`.replace(/\n/g, '\r\n');
+    const restore = common + `try {
+  $game = Find-Game; $sys = Join-Path $game 'white_data\\sys'; $bk = Join-Path $game 'hardmode_backup'; $did = $false
+  foreach ($v in $variants) {
+    $breg = Join-Path $bk "region$($v.t).bin"; $bfl = Join-Path $bk "filelist$($v.t).win32.bin"
+    if ((Test-Path -LiteralPath $breg) -and (Test-Path -LiteralPath $bfl)) {
+      Write-At (Join-Path $sys "white_img$($v.t).win32.bin") $v.off ([IO.File]::ReadAllBytes($breg))
+      Copy-Item -LiteralPath $bfl -Destination (Join-Path $sys "filelist$($v.t).win32.bin") -Force
+      $did = $true
+    }
+  }
+  if ($did) { Remove-Item -LiteralPath $bk -Recurse -Force; Write-Host "Original enemy data restored." -ForegroundColor Green }
+  else { Write-Host "No hard-mode backup found in $bk; nothing to restore." }
+} catch {
+  $e = $_.Exception; while ($e.InnerException) { $e = $e.InnerException }
+  Write-Host "Restore failed: $($e.Message)" -ForegroundColor Red
+  Write-Host "If the game is running, close it and try again."
+}
+`.replace(/\n/g, '\r\n');
+    const bat = ps => `@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0${ps}"\r\npause\r\n`;
+    return { install, restore, installBat: bat('install.ps1'), restoreBat: bat('restore.ps1') };
+  }
+  $('hmBuild').addEventListener('click', async () => {
+    showErr(''); const st = $('hmStatus'); st.textContent = 'Building…';
+    try {
+      const vals = new Map(hm.recs.map(r => [r.id, hmValue(r)]));
+      const w2 = HM.writeWdb(hm.wdb, hm.recs, vals);
+      const check = HM.parseWdb(w2);
+      for (const r of check) { const v = vals.get(r.id); if (r.hp !== v.hp || r.str !== v.str || r.mag !== v.mag || r.cp !== v.cp) throw new Error('Verification failed for ' + r.id + '.'); }
+      const files = [{ name: 'FF13 Hard Mode/bt_chara_spec.wdb', data: w2 }];
+      const summary = [`HP ${hm.mult.hp}%, Strength ${hm.mult.str}%, Magic ${hm.mult.mag}%, CP ${hm.mult.cp}% (${$('hmScope').selectedOptions[0].text.toLowerCase()})`, `${hm.ov.size} enemies with custom values`];
+      if (hm.variants.length) {
+        const blob = await deflate(w2);
+        if ((await inflate(blob)).some((x, i) => x !== w2[i])) throw new Error('Compression check failed.');
+        const vs = [];
+        for (const v of hm.variants) {
+          const h = v.P.hit;
+          if (blob.length > h.room) throw new Error(`The edited data is ${blob.length - h.room} bytes too large to fit. Try smaller changes.`);
+          const fl2 = await HM.patchFilelist(v.fl, v.P, blob.length, deflate);
+          const P2 = await HM.parseFilelist(fl2, inflate);
+          if (P2.hit.cmp !== blob.length || P2.hit.sector !== h.sector || P2.hit.uncmp !== h.uncmp) throw new Error('Filelist check failed.');
+          const region = new Uint8Array(h.room); region.set(blob, 0);
+          files.push({ name: `FF13 Hard Mode/data/filelist${v.t}.win32.bin`, data: fl2 }, { name: `FF13 Hard Mode/data/region${v.t}.bin`, data: region });
+          vs.push({ t: v.t, off: h.sector * HM.SECTOR, room: h.room, oldcmp: h.cmp, flsha: v.flsha, blobsha: v.blobsha });
+        }
+        const s = psScripts(vs);
+        files.push({ name: 'FF13 Hard Mode/install.ps1', data: s.install }, { name: 'FF13 Hard Mode/restore.ps1', data: s.restore },
+                   { name: 'FF13 Hard Mode/install.bat', data: s.installBat }, { name: 'FF13 Hard Mode/restore.bat', data: s.restoreBat });
+      }
+      const readme = `FF13 Hard Mode\r\n\r\n${summary.join('\r\n')}\r\n\r\n` + (hm.variants.length
+        ? `1. Extract this folder into your FINAL FANTASY XIII folder (next to FFXiiiLauncher.exe).\r\n2. Close the game. Run install.bat. It backs up the original enemy data to hardmode_backup first.\r\n3. To undo, run restore.bat.\r\n\r\nInstalling again with a new build restores the backup first, so changes never stack.\r\nA Steam "Verify integrity of game files" check will also undo it.\r\n`
+        : `bt_chara_spec.wdb goes in db\\resident inside the game's data (use a mod manager such as Nova Chrysalia).\r\n`);
+      files.push({ name: 'FF13 Hard Mode/README.txt', data: readme });
+      const z = zipMany(files);
+      if (!downloads) {
+        const a = document.createElement('a'); a.href = URL.createObjectURL(z); a.download = 'FF13 Hard Mode.zip';
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      } else await downloads.save({ filename: 'FF13 Hard Mode.zip', data: z });
+      st.textContent = 'Saved FF13 Hard Mode.zip · ' + summary[0];
+    } catch (err) {
+      if (err && err.code === 'declined') { st.textContent = ''; return; }
+      st.textContent = ''; showErr((err && err.message) || String(err));
+    }
+  });
+
+  // ---- file IO
+  function readAll(s) {
+    const st = { ab: {}, atb: {}, inv: {} };
+    for (const c of CH) { st.ab[c.key] = [...new Set(FF13.readAbilities(s, c))]; st.atb[c.key] = FF13.readAtb(s, c); }
+    st.inv.items = FF13.readBag(s, 'items'); st.inv.mats = FF13.readBag(s, 'mats');
+    { const p = FF13.readParty(s); st.party = { battle: p.battle, reserve: p.members.filter(k => !p.battle.includes(k)) }; }
+    for (const k of ['weapons', 'accs']) st.inv[k] = FF13.readGear(s, k).map(a => ({ idx: a.idx, id: a.id, equipped: a.equipped, level: a.level, ref: a.ref }));
+    return st;
+  }
+  async function loadFile(f) {
+    showErr('');
+    try {
+      const s = FF13.open(new Uint8Array(await f.arrayBuffer()));
+      const st = readAll(s);
+      for (const c of CH) if (!(st.atb[c.key] >= 1 && st.atb[c.key] <= 6)) st.atb[c.key] = Math.min(6, Math.max(1, Math.round(st.atb[c.key])));
+      save = s; fileName = f.name; orig = st; cur = clone(st);
+      const [t, , loc, play] = s.title.split('\n');
+      $('meta').innerHTML = `<b>${esc(f.name)}</b><div>${esc([t, loc, play].filter(Boolean).join('\n').replace(/[\x85…]W/g, '·'))}</div>`;
+      render();
+    } catch (err) { showErr(err.message || String(err)); }
+  }
+  $('openBtn').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });
+  const drop = $('drop');
+  ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+  // Minimal stored .zip (the Claude download allowlist does not include .dat)
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zipMany(files) {
+    const enc = new TextEncoder(), now = new Date();
+    const dt = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(), tm = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const parts = [], central = []; let off = 0;
+    for (const f of files) {
+      const nm = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data), sz = data.length;
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 10, true); lh.setUint16(6, 0x0800, true); lh.setUint16(10, tm, true); lh.setUint16(12, dt, true);
+      lh.setUint32(14, crc, true); lh.setUint32(18, sz, true); lh.setUint32(22, sz, true); lh.setUint16(26, nm.length, true);
+      const ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 10, true); ch.setUint16(8, 0x0800, true); ch.setUint16(12, tm, true); ch.setUint16(14, dt, true);
+      ch.setUint32(16, crc, true); ch.setUint32(20, sz, true); ch.setUint32(24, sz, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+      parts.push(lh, nm, data); central.push(ch, nm); off += 30 + nm.length + sz;
+    }
+    const cdSize = central.reduce((a, x) => a + x.byteLength, 0), end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+    return new Blob([...parts, ...central, end], { type: 'application/zip' });
+  }
+  const zip = (name, data) => zipMany([{ name, data }]);
+  let downloads = null;
+  (async () => { try { downloads = await window.claude?.use?.('downloads'); } catch {} })();
+
+  $('saveBtn').addEventListener('click', async () => {
+    showErr('');
+    try {
+      // Work on a fresh copy so a failed save leaves the loaded file untouched
+      const work = { header: save.header, body: new Uint8Array(save.body), title: save.title };
+      const edited = CH.filter(c => abChanged(c.key));
+      for (const c of edited) FF13.writeAbilities(work, c, cur.ab[c.key]);
+      for (const c of CH) if (atbChanged(c.key)) FF13.writeAtb(work, c, cur.atb[c.key]);
+      if (bagChanged('items')) FF13.writeBag(work, 'items', cur.inv.items);
+      if (bagChanged('mats')) FF13.writeBag(work, 'mats', cur.inv.mats);
+      for (const k of ['weapons', 'accs']) if (bagChanged(k)) FF13.writeGear(work, k, cur.inv[k]);
+      if (partyChanged()) FF13.writeParty(work, cur.party.battle, cur.party.reserve);
+      const out = FF13.build(work);
+      const check = FF13.open(out); // re-read to confirm the file decrypts and the edits landed
+      const got = readAll(check);
+      for (const c of edited) if (!sameArr(got.ab[c.key], cur.ab[c.key])) throw new Error('Verification failed for ' + c.name + '; nothing was saved.');
+      for (const c of CH) if (atbChanged(c.key) && got.atb[c.key] !== cur.atb[c.key]) throw new Error('ATB verification failed; nothing was saved.');
+      for (const k of ['items', 'mats']) if (bagChanged(k) && JSON.stringify(got.inv[k]) !== JSON.stringify(cur.inv[k])) throw new Error('Inventory verification failed; nothing was saved.');
+      if (partyChanged() && JSON.stringify(got.party) !== JSON.stringify(cur.party)) throw new Error('Party verification failed; nothing was saved.');
+      for (const k of ['weapons', 'accs']) if (bagChanged(k) && !sameArr(got.inv[k].map(a => a.id + '@' + a.level), cur.inv[k].map(a => a.id + '@' + a.level))) throw new Error('Weapon/accessory verification failed; nothing was saved.');
+
+      const base = fileName.replace(/\.dat$/i, '');
+      let msg;
+      if (!downloads) {
+        // Standalone file outside Claude: save the .dat directly.
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([out], { type: 'application/octet-stream' }));
+        a.download = base + '.dat'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        msg = `<b>Saved ${esc(base)}.dat</b> · copy it into your save folder`;
+      } else {
+        await downloads.save({ filename: base + '-edited.zip', data: zip(base + '.dat', out) });
+        msg = `<b>Saved ${esc(base)}-edited.zip</b> · extract the .dat inside it into your save folder`;
+      }
+      save = check; orig = got; for (const c of CH) got.atb[c.key] = Math.min(6, Math.max(1, got.atb[c.key])); cur = clone(got);
+      render();
+      const st = $('status'); st.classList.add('ok'); st.innerHTML = msg;
+    } catch (err) {
+      if (err && err.code === 'declined') return;
+      if (err && err.code === 'rate_limited') { showErr('A save prompt is already open. Finish it, then try again.'); return; }
+      showErr((err && err.message) || String(err));
+    }
+  });
+
+  render();
+})();
+</script>

@@ -1,0 +1,31 @@
+{
+  "name": "crystarium-save-editor",
+  "productName": "Crystarium Save Editor",
+  "version": "1.0.0",
+  "description": "Final Fantasy XIII (PC) save editor: abilities, passives, ATB, party, inventory and an enemy hard mode.",
+  "main": "main.js",
+  "license": "GPL-3.0-or-later",
+  "author": "Crystarium Save Editor contributors",
+  "scripts": {
+    "copy-pako": "node -e \"require('fs').copyFileSync(require.resolve('pako/dist/pako.min.js'), 'pako.min.js')\"",
+    "start": "npm run copy-pako && electron .",
+    "dist": "npm run copy-pako && electron-builder --win portable --x64 --publish never"
+  },
+  "dependencies": {
+    "pako": "2.1.0"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "io.github.crystarium.saveeditor",
+    "productName": "Crystarium Save Editor",
+    "files": ["main.js", "index.html", "pako.min.js", "package.json"],
+    "directories": { "output": "dist" },
+    "win": {
+      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "artifactName": "CrystariumSaveEditor-${version}-portable.exe"
+    }
+  }
+}

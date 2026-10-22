@@ -1,0 +1,7 @@
+node_modules/
+dist/
+app/dist/
+app/index.html
+app/pako.min.js
+*.dat
+*.wdb

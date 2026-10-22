@@ -1,0 +1,97 @@
+// FF13 enemy data (db/resident/bt_chara_spec.wdb) editing + in-place archive patching.
+// inflate/deflate are injected (browser: DecompressionStream/CompressionStream 'deflate' = zlib format).
+const HM = (() => {
+  const SECTOR = 0x800, PATH = 'db/resident/bt_chara_spec.wdb';
+  const td = new TextDecoder('latin1'), te = new TextEncoder();
+  const le32 = (b, o) => (b[o] | b[o+1] << 8 | b[o+2] << 16 | b[o+3] << 24) >>> 0;
+  const wle32 = (b, o, v) => { b[o] = v & 255; b[o+1] = v >>> 8 & 255; b[o+2] = v >>> 16 & 255; b[o+3] = v >>> 24 & 255; };
+  const be32 = (b, o) => ((b[o] << 24) | (b[o+1] << 16) | (b[o+2] << 8) | b[o+3]) >>> 0;
+  const wbe32 = (b, o, v) => { b[o] = v >>> 24 & 255; b[o+1] = v >>> 16 & 255; b[o+2] = v >>> 8 & 255; b[o+3] = v & 255; };
+  const be16 = (b, o) => (b[o] << 8) | b[o+1];
+  const wbe16 = (b, o, v) => { b[o] = v >>> 8 & 255; b[o+1] = v & 255; };
+
+  // ---- filelist{u,c}.win32.bin: header (chunkInfoOff, chunkDataOff, fileCount) LE, 8-byte entries
+  // (code u32, chunk u16, offsetInChunk u16), chunk table of (uncmp, cmp, off) LE, zlib chunks of
+  // "sector:uncmp:cmp:path\0" strings (hex).
+  async function parseFilelist(fl, inflate) {
+    const ci = le32(fl, 0), cd = le32(fl, 4), n = le32(fl, 8);
+    if (ci !== 12 + n * 8 || ci >= fl.length || cd > fl.length) throw new Error('This does not look like an FF13 filelist (filelistu/filelistc.win32.bin).');
+    const chunks = [];
+    for (let i = 0; i < (cd - ci) / 12; i++) {
+      const u = le32(fl, ci + i * 12), c = le32(fl, ci + i * 12 + 4), o = le32(fl, ci + i * 12 + 8);
+      const data = await inflate(fl.subarray(cd + o, cd + o + c));
+      if (data.length !== u) throw new Error('Filelist chunk size mismatch.');
+      chunks.push({ u, c, o, data });
+    }
+    let hit = null;
+    chunks.forEach((ch, ci2) => {
+      let p = 0;
+      while (p < ch.data.length) {
+        let z = ch.data.indexOf(0, p); if (z < 0) z = ch.data.length;
+        const s = td.decode(ch.data.subarray(p, z));
+        const m = /^([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):(.*)$/.exec(s);
+        if (m && m[4] === PATH && !hit) hit = { chunk: ci2, at: p, len: z - p, sector: parseInt(m[1], 16), uncmp: parseInt(m[2], 16), cmp: parseInt(m[3], 16), str: s };
+        p = z + 1;
+      }
+    });
+    if (!hit) throw new Error('This filelist has no ' + PATH + '.');
+    // the next file after ours in the archive bounds how much space we may use
+    let next = Infinity;
+    chunks.forEach(ch => td.decode(ch.data).split('\0').forEach(s => {
+      const m = /^([0-9a-f]+):[0-9a-f]+:[0-9a-f]+:/.exec(s); if (m) { const sec = parseInt(m[1], 16); if (sec > hit.sector && sec < next) next = sec; }
+    }));
+    hit.room = next === Infinity ? Math.ceil(hit.cmp / SECTOR) * SECTOR : (next - hit.sector) * SECTOR;
+    return { ci, cd, n, chunks, hit };
+  }
+  // Rebuild the filelist with our entry's compressed size changed (string length must stay the same).
+  async function patchFilelist(fl, parsed, newCmp, deflate) {
+    const { ci, cd, chunks, hit } = parsed;
+    const oldCmpHex = hit.str.split(':')[2], newCmpHex = newCmp.toString(16);
+    if (newCmpHex.length !== oldCmpHex.length) throw new Error('New size changes the filelist entry length; not supported.');
+    const parts = hit.str.split(':'); parts[2] = newCmpHex; const ns = parts.join(':');
+    const chunks2 = chunks.map((ch, i) => {
+      if (i !== hit.chunk) return ch;
+      const d = new Uint8Array(ch.data); d.set(te.encode(ns), hit.at); return { ...ch, data: d, dirty: true };
+    });
+    const comp = [];
+    for (const ch of chunks2) comp.push(ch.dirty ? await deflate(ch.data) : fl.subarray(cd + ch.o, cd + ch.o + ch.c));
+    const total = cd + comp.reduce((a, c) => a + c.length, 0);
+    const out = new Uint8Array(total);
+    out.set(fl.subarray(0, cd), 0);
+    let off = 0;
+    comp.forEach((c, i) => { wle32(out, ci + i * 12, chunks2[i].u); wle32(out, ci + i * 12 + 4, c.length); wle32(out, ci + i * 12 + 8, off); out.set(c, cd + off); off += c.length; });
+    return out;
+  }
+
+  // ---- WDB (big-endian): header count @4, 0x20-byte table (name[16], off, size). Enemy records 0x168 bytes.
+  const F = { hp: 0x10, cp: 0xEC, lv: 0xFE, mag: 0x10C, str: 0x10E };
+  function parseWdb(w) {
+    if (td.decode(w.subarray(0, 3)) !== 'WPD') throw new Error('Not a WDB file.');
+    const n = be32(w, 4), recs = [];
+    for (let i = 0; i < n; i++) {
+      const o = 0x10 + i * 0x20, id = td.decode(w.subarray(o, o + 16)).split('\0')[0], off = be32(w, o + 16), size = be32(w, o + 20);
+      if (id.startsWith('!!') || size < 0x110) continue;
+      recs.push({ id, off, hp: be32(w, off + F.hp) & 0xFFFFFF, str: be16(w, off + F.str), mag: be16(w, off + F.mag), cp: be32(w, off + F.cp) & 0xFFFFFF, lv: w[off + F.lv] });
+    }
+    if (!recs.length) throw new Error('No enemy records found; is this bt_chara_spec.wdb?');
+    return recs;
+  }
+  function writeWdb(w, recs, vals) { // vals: Map id -> {hp,str,mag,cp}
+    const out = new Uint8Array(w);
+    for (const r of recs) {
+      const v = vals.get(r.id); if (!v) continue;
+      const clamp = (x, max) => Math.max(1, Math.min(max, Math.round(x)));
+      const hi = be32(out, r.off + F.hp) & 0xFF000000; wbe32(out, r.off + F.hp, (hi | clamp(v.hp, 0xFFFFFF)) >>> 0);
+      wbe16(out, r.off + F.str, Math.max(0, Math.min(65535, Math.round(v.str))));
+      wbe16(out, r.off + F.mag, Math.max(0, Math.min(65535, Math.round(v.mag))));
+      const hc = be32(out, r.off + F.cp) & 0xFF000000; wbe32(out, r.off + F.cp, (hc | Math.max(0, Math.min(0xFFFFFF, Math.round(v.cp)))) >>> 0);
+    }
+    return out;
+  }
+  async function sha256hex(u8) {
+    const h = await crypto.subtle.digest('SHA-256', u8);
+    return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  return { SECTOR, PATH, parseFilelist, patchFilelist, parseWdb, writeWdb, sha256hex };
+})();
+if (typeof module !== 'undefined') module.exports = HM;

@@ -119,6 +119,23 @@ const FF13 = (() => {
     save.body[recBase(c) + ATB] = seg * 10;
   }
 
+  // ---- Roles: six big-endian u32 role levels at +0xC28 (0 = locked, 1-5 = role level)
+  // in the order Sentinel, Commando, Ravager, Synergist, Saboteur, Medic.
+  const ROLE_AT = 0xC28, ROLE_ORDER = ['SEN', 'COM', 'RAV', 'SYN', 'SAB', 'MED'];
+  function readRoles(save, c) {
+    const b = save.body, o = recBase(c) + ROLE_AT, out = {};
+    ROLE_ORDER.forEach((r, i) => { out[r] = be32(b, o + i * 4); });
+    return out;
+  }
+  function writeRoles(save, c, levels) {
+    const b = save.body, o = recBase(c) + ROLE_AT;
+    ROLE_ORDER.forEach((r, i) => {
+      const v = levels[r];
+      if (!(Number.isInteger(v) && v >= 0 && v <= 5)) throw new Error(`${c.name}: role levels must be 0-5.`);
+      wbe32(b, o + i * 4, v);
+    });
+  }
+
   // ---- Inventory bags: 20-byte entries = ID (16 bytes, NUL-padded) + big-endian u32 count
   const BAGS = {
     items:   { start: 0x37298, n: 60 },
@@ -226,6 +243,6 @@ const FF13 = (() => {
   }
   const readAccessories = s => readGear(s, 'accs'), writeAccessories = (s, l) => writeGear(s, 'accs', l);
   return { open, build, decrypt, encrypt, checksum, readAbilities, writeAbilities, readAtb, writeAtb,
-           readBag, writeBag, readGear, writeGear, readParty, writeParty, readAccessories, writeAccessories, CHARS, CAP, MAXQ, BAGS };
+           readBag, writeBag, readGear, writeGear, readParty, writeParty, readRoles, writeRoles, ROLE_ORDER, readAccessories, writeAccessories, CHARS, CAP, MAXQ, BAGS };
 })();
 if (typeof module !== 'undefined') module.exports = FF13;

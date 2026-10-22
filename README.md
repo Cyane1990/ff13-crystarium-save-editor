@@ -6,6 +6,7 @@ A save editor for **Final Fantasy XIII on PC (Steam)**, plus an optional hard mo
 
 ## Features
 
+- **Roles**: unlock any of the six roles for each character and set role levels 1–5.
 - **Abilities**: choose exactly which Crystarium abilities each character has, role by role. Abilities made for another character (Army of One, Highwind, and so on) can be shown and added too.
 - **Passives** (experimental): add equipment passives such as Auto Haste or Auto Tetradefense directly to a character.
 - **ATB**: set each character's ATB segments from 1 to 6.
@@ -47,6 +48,8 @@ Running a newer build's `install.bat` restores the backup first, so settings nev
 ## How it works
 
 - **Saves**: `ff13-XX.dat` is a 0x208-byte plain header followed by a body encrypted with the same cipher as the PS3/Xbox 360 versions, using a different key. The editor decrypts the body, edits it, updates the checksum in the last 4 bytes, and encrypts it again. Unchanged saves come back byte-identical.
+- **Roles**: unlock any of the six roles for each character and set role levels 1–5.
+- **Roles** are six 32-bit role levels at +0xC28 (Sentinel, Commando, Ravager, Synergist, Saboteur, Medic; 0 = locked).
 - **Abilities** are a list of 16-byte ability IDs in each character's 0xD80-byte record, with a count byte at +0x27. ATB is at +0xC58 (segments × 10).
 - **Inventory** uses fixed bags of 20-byte entries. Weapons and accessories point into a 512-entry equipment table that stores the equipped flag and level.
 - **Hard mode** finds `bt_chara_spec.wdb` through the archive's file list and recompresses the edited table. The installer writes it back in its original place, which has room to spare, and updates only that file's size in the file list.

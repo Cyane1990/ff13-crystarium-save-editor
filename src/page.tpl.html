@@ -171,7 +171,7 @@ code.p{font:12px var(--mono);overflow-wrap:anywhere;color:var(--fg)}
 <div class="wrap">
   <div>
     <h1><small>Final Fantasy XIII · PC save editor</small>Crystarium Save Editor</h1>
-    <p class="lede">Set each character's roles, abilities, passives and ATB segments, choose your party, make enemies tougher, and edit your items, weapons, accessories and components. Open an <code class="p">ff13-XX.dat</code> save, make changes, then save the edited copy. Everything runs in this page; your save is not uploaded anywhere.</p>
+    <p class="lede">Set each character's roles, abilities, passives, ATB segments and accessory slots, choose your party, make enemies tougher, and edit your items, weapons, accessories and components. Open an <code class="p">ff13-XX.dat</code> save, make changes, then save the edited copy. Everything runs in this page; your save is not uploaded anywhere.</p>
   </div>
 
   <div class="filebar" id="drop">
@@ -195,6 +195,12 @@ code.p{font:12px var(--mono);overflow-wrap:anywhere;color:var(--fg)}
       <h2 id="atbTitle">ATB</h2>
       <div class="segs" id="segs"></div>
       <p>Number of ATB segments in battle. The game's normal maximum is 6.</p>
+    </section>
+
+    <section class="atb" aria-label="Accessory slots">
+      <h2 id="accTitle">Accessory slots</h2>
+      <div class="segs" id="accsegs"></div>
+      <p>How many accessories this character can equip. The game normally adds slots through the Crystarium, up to 4.</p>
     </section>
 
     <section class="panel" aria-label="Roles">
@@ -349,6 +355,7 @@ const DATA = /*DATA*/;
       vanira: ['c004_at010_00','mb300_00','mw000_00','mg020_00','mg500_00','tp100_00'],
       fang: ['at010_00','at520_00','ac100_00','gd010_00','mg000_00','tp100_00'] },
     atb: { lightning: 3, snow: 3, sazz: 3, hope: 3, vanira: 3, fang: 3 },
+    acc: { lightning: 1, snow: 1, sazz: 1, hope: 1, vanira: 1, fang: 1 },
     roles: { lightning: { SEN: 0, COM: 1, RAV: 1, SYN: 0, SAB: 0, MED: 1 }, snow: { SEN: 1, COM: 1, RAV: 1, SYN: 0, SAB: 0, MED: 0 }, sazz: { SEN: 0, COM: 1, RAV: 1, SYN: 1, SAB: 0, MED: 0 }, hope: { SEN: 0, COM: 0, RAV: 1, SYN: 1, SAB: 0, MED: 1 }, vanira: { SEN: 0, COM: 0, RAV: 1, SYN: 0, SAB: 1, MED: 1 }, fang: { SEN: 1, COM: 1, RAV: 0, SYN: 0, SAB: 1, MED: 0 } },
     party: { battle: ['lightning', 'snow', 'vanira'], reserve: ['sazz', 'hope'] },
     inv: {
@@ -368,7 +375,8 @@ const DATA = /*DATA*/;
   const abChanged = k => !sameArr(orig.ab[k], cur.ab[k]);
   const atbChanged = k => orig.atb[k] !== cur.atb[k];
   const rolesChanged = k => JSON.stringify(orig.roles[k]) !== JSON.stringify(cur.roles[k]);
-  const charChanged = k => abChanged(k) || atbChanged(k) || rolesChanged(k);
+  const accChanged = k => orig.acc[k] !== cur.acc[k];
+  const charChanged = k => abChanged(k) || atbChanged(k) || rolesChanged(k) || accChanged(k);
   const bagChanged = k => JSON.stringify(orig.inv[k]) !== JSON.stringify(cur.inv[k]);
   const partyChanged = () => JSON.stringify(orig.party) !== JSON.stringify(cur.party);
   const invChanged = () => ['items', 'weapons', 'mats', 'accs'].some(bagChanged);
@@ -378,12 +386,14 @@ const DATA = /*DATA*/;
     $('rail').innerHTML = CH.map(c => `<button type="button" class="char" aria-pressed="${c.key === active}" data-k="${c.key}">
       <span class="n">${c.name}${charChanged(c.key) ? '<span class="dot" title="Edited"></span>' : ''}</span>
       <span class="gauge" aria-label="${cur.atb[c.key]} ATB segments">${[1,2,3,4,5,6].map(i => `<i class="${i <= cur.atb[c.key] ? 'on' : ''}"></i>`).join('')}</span>
-      <span class="c">${cur.atb[c.key]} ATB · ${cur.ab[c.key].length} abilities</span></button>`).join('');
+      <span class="c">${cur.atb[c.key]} ATB · ${cur.acc[c.key]} acc · ${cur.ab[c.key].length} abilities</span></button>`).join('');
   }
   function renderAtb() {
     const c = CH.find(x => x.key === active);
     $('atbTitle').textContent = c.name + "'s ATB";
     $('segs').innerHTML = [1,2,3,4,5,6].map(i => `<button type="button" data-seg="${i}" class="${i <= cur.atb[active] ? 'on' : ''}" aria-pressed="${i === cur.atb[active]}" aria-label="${i} segments">${i}</button>`).join('');
+    $('accTitle').textContent = c.name + "'s accessory slots";
+    $('accsegs').innerHTML = [1,2,3,4].map(i => `<button type="button" data-acc="${i}" class="${i <= cur.acc[active] ? 'on' : ''}" aria-pressed="${i === cur.acc[active]}" aria-label="${i} accessory slots">${i}</button>`).join('');
   }
   const ROLE_ORDER_UI = [['COM', 'Commando', '--com'], ['RAV', 'Ravager', '--rav'], ['SEN', 'Sentinel', '--sen'], ['SYN', 'Synergist', '--syn'], ['SAB', 'Saboteur', '--sab'], ['MED', 'Medic', '--med']];
   function renderRoleLevels() {
@@ -548,6 +558,7 @@ const DATA = /*DATA*/;
   $('rolegrid').addEventListener('change', e => { const r = e.target.dataset.role; if (!r) return; cur.roles[active][r] = +e.target.value; render(); });
   $('unlockChar').addEventListener('click', () => { const R = cur.roles[active]; for (const k in R) if (!R[k]) R[k] = 1; render(); });
   $('unlockAll').addEventListener('click', () => { for (const c of CH) { const R = cur.roles[c.key]; for (const k in R) if (!R[k]) R[k] = 1; } render(); });
+  $('accsegs').addEventListener('click', e => { const b = e.target.closest('[data-acc]'); if (!b) return; cur.acc[active] = +b.dataset.acc; render(); });
   $('segs').addEventListener('click', e => { const b = e.target.closest('[data-seg]'); if (!b) return; cur.atb[active] = +b.dataset.seg; render(); });
   $('roles').addEventListener('change', e => { const k = e.target.dataset.g; if (!k) return; setGroup(groups.get(k), e.target.checked); limit(); render(); });
   $('roles').addEventListener('click', e => {
@@ -571,7 +582,7 @@ const DATA = /*DATA*/;
     showErr(''); if (!cur.ab[active].includes(id)) cur.ab[active].push(id); $('addId').value = ''; limit(); render();
   });
   $('addId').addEventListener('keydown', e => { if (e.key === 'Enter') $('addBtn').click(); });
-  $('resetChar').addEventListener('click', () => { cur.ab[active] = [...orig.ab[active]]; cur.atb[active] = orig.atb[active]; cur.roles[active] = { ...orig.roles[active] }; render(); });
+  $('resetChar').addEventListener('click', () => { cur.ab[active] = [...orig.ab[active]]; cur.atb[active] = orig.atb[active]; cur.acc[active] = orig.acc[active]; cur.roles[active] = { ...orig.roles[active] }; render(); });
   $('revertAll').addEventListener('click', () => { cur = clone(orig); render(); });
   $('copyTo').addEventListener('change', e => {
     const to = e.target.value; if (!to) return;
@@ -875,8 +886,8 @@ function Write-At([string]$p, [long]$off, [byte[]]$b) {
   // ---- file IO
   function readAll(s) {
     const st = { ab: {}, atb: {}, inv: {} };
-    st.roles = {};
-    for (const c of CH) { st.ab[c.key] = [...new Set(FF13.readAbilities(s, c))]; st.atb[c.key] = FF13.readAtb(s, c); const rl = FF13.readRoles(s, c); for (const k in rl) rl[k] = Math.min(5, rl[k]); st.roles[c.key] = rl; }
+    st.roles = {}; st.acc = {};
+    for (const c of CH) { st.ab[c.key] = [...new Set(FF13.readAbilities(s, c))]; st.atb[c.key] = FF13.readAtb(s, c); const rl = FF13.readRoles(s, c); for (const k in rl) rl[k] = Math.min(5, rl[k]); st.roles[c.key] = rl; st.acc[c.key] = Math.min(4, Math.max(1, FF13.readAccSlots(s, c))); }
     st.inv.items = FF13.readBag(s, 'items'); st.inv.mats = FF13.readBag(s, 'mats');
     { const p = FF13.readParty(s); st.party = { battle: p.battle, reserve: p.members.filter(k => !p.battle.includes(k)) }; }
     for (const k of ['weapons', 'accs']) st.inv[k] = FF13.readGear(s, k).map(a => ({ idx: a.idx, id: a.id, equipped: a.equipped, level: a.level, ref: a.ref }));
@@ -935,6 +946,7 @@ function Write-At([string]$p, [long]$off, [byte[]]$b) {
       for (const c of edited) FF13.writeAbilities(work, c, cur.ab[c.key]);
       for (const c of CH) if (atbChanged(c.key)) FF13.writeAtb(work, c, cur.atb[c.key]);
       for (const c of CH) if (rolesChanged(c.key)) FF13.writeRoles(work, c, cur.roles[c.key]);
+      for (const c of CH) if (accChanged(c.key)) FF13.writeAccSlots(work, c, cur.acc[c.key]);
       if (bagChanged('items')) FF13.writeBag(work, 'items', cur.inv.items);
       if (bagChanged('mats')) FF13.writeBag(work, 'mats', cur.inv.mats);
       for (const k of ['weapons', 'accs']) if (bagChanged(k)) FF13.writeGear(work, k, cur.inv[k]);
@@ -945,6 +957,7 @@ function Write-At([string]$p, [long]$off, [byte[]]$b) {
       for (const c of edited) if (!sameArr(got.ab[c.key], cur.ab[c.key])) throw new Error('Verification failed for ' + c.name + '; nothing was saved.');
       for (const c of CH) if (atbChanged(c.key) && got.atb[c.key] !== cur.atb[c.key]) throw new Error('ATB verification failed; nothing was saved.');
       for (const c of CH) if (rolesChanged(c.key) && JSON.stringify(got.roles[c.key]) !== JSON.stringify(cur.roles[c.key])) throw new Error('Role verification failed; nothing was saved.');
+      for (const c of CH) if (accChanged(c.key) && got.acc[c.key] !== cur.acc[c.key]) throw new Error('Accessory slot verification failed; nothing was saved.');
       for (const k of ['items', 'mats']) if (bagChanged(k) && JSON.stringify(got.inv[k]) !== JSON.stringify(cur.inv[k])) throw new Error('Inventory verification failed; nothing was saved.');
       if (partyChanged() && JSON.stringify(got.party) !== JSON.stringify(cur.party)) throw new Error('Party verification failed; nothing was saved.');
       for (const k of ['weapons', 'accs']) if (bagChanged(k) && !sameArr(got.inv[k].map(a => a.id + '@' + a.level), cur.inv[k].map(a => a.id + '@' + a.level))) throw new Error('Weapon/accessory verification failed; nothing was saved.');

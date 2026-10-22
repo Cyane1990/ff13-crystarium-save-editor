@@ -119,6 +119,14 @@ const FF13 = (() => {
     save.body[recBase(c) + ATB] = seg * 10;
   }
 
+  // ---- Accessory slots: one byte per character at +0xC40 (1-4; the game's menu shows at most 4)
+  const ACC_SLOTS = 0xC40;
+  function readAccSlots(save, c) { return save.body[recBase(c) + ACC_SLOTS]; }
+  function writeAccSlots(save, c, n) {
+    if (!(Number.isInteger(n) && n >= 1 && n <= 4)) throw new Error(`${c.name}: accessory slots must be 1-4.`);
+    save.body[recBase(c) + ACC_SLOTS] = n;
+  }
+
   // ---- Roles: six big-endian u32 role levels at +0xC28 (0 = locked, 1-5 = role level)
   // in the order Sentinel, Commando, Ravager, Synergist, Saboteur, Medic.
   const ROLE_AT = 0xC28, ROLE_ORDER = ['SEN', 'COM', 'RAV', 'SYN', 'SAB', 'MED'];
@@ -247,6 +255,6 @@ const FF13 = (() => {
   }
   const readAccessories = s => readGear(s, 'accs'), writeAccessories = (s, l) => writeGear(s, 'accs', l);
   return { open, build, decrypt, encrypt, checksum, readAbilities, writeAbilities, readAtb, writeAtb,
-           readBag, writeBag, readGear, writeGear, readParty, writeParty, readRoles, writeRoles, ROLE_ORDER, readAccessories, writeAccessories, CHARS, CAP, MAXQ, BAGS };
+           readBag, writeBag, readGear, writeGear, readParty, writeParty, readRoles, writeRoles, ROLE_ORDER, readAccSlots, writeAccSlots, readAccessories, writeAccessories, CHARS, CAP, MAXQ, BAGS };
 })();
 if (typeof module !== 'undefined') module.exports = FF13;

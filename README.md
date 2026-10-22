@@ -9,7 +9,7 @@ A save editor for **Final Fantasy XIII on PC (Steam)**, plus an optional hard mo
 - **Roles**: view and set each character's stored role levels (0–5). Raising a locked role doesn't add its crystal to the Crystarium; the game does that through a Chapter 10 story event.
 - **Abilities**: choose exactly which Crystarium abilities each character has, role by role. Abilities made for another character (Army of One, Highwind, and so on) can be shown and added too.
 - **Passives**: find the accessory or weapon that carries a passive such as Auto Haste and add it to your inventory, ready to equip.
-- **ATB**: set each character's ATB segments from 1 to 6.
+- **ATB and accessory slots**: set each character's ATB segments (1–6) and accessory slots (1–4).
 - **Party**: choose the leader, the battle team and the reserve.
 - **Inventory**: consumables, components, weapons and accessories. Each owned weapon or accessory can be turned into a different one (which changes its passive) and given any level up to the item's real maximum. Equipped gear can be changed but not removed.
 - **Hard mode**: scale enemy HP, Strength, Magic and CP rewards for all enemies, bosses only, or regular enemies, or set exact values per enemy. This changes the game's data files and comes with an installer and a one-click restore.
@@ -49,7 +49,7 @@ Running a newer build's `install.bat` restores the backup first, so settings nev
 
 - **Saves**: `ff13-XX.dat` is a 0x208-byte plain header followed by a body encrypted with the same cipher as the PS3/Xbox 360 versions, using a different key. The editor decrypts the body, edits it, updates the checksum in the last 4 bytes, and encrypts it again. Unchanged saves come back byte-identical.
 - **Roles** are six 32-bit role levels at +0xC28 (Sentinel, Commando, Ravager, Synergist, Saboteur, Medic; 0 = locked).
-- **Abilities** are a list of 16-byte ability IDs in each character's 0xD80-byte record, with a count byte at +0x27. ATB is at +0xC58 (segments × 10).
+- **Abilities** are a list of 16-byte ability IDs in each character's 0xD80-byte record, with a count byte at +0x27. ATB is at +0xC58 (segments × 10) and the accessory slot count at +0xC40.
 - **Inventory** uses fixed bags of 20-byte entries. Weapons and accessories point into a 512-entry equipment table that stores the equipped flag and level.
 - **Hard mode** finds `bt_chara_spec.wdb` through the archive's file list and recompresses the edited table. The installer writes it back in its original place, which has room to spare, and updates only that file's size in the file list.
 
